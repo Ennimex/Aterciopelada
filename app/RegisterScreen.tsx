@@ -233,14 +233,18 @@ const registerStyles = StyleSheet.create({
     borderRadius: 60,
     backgroundColor: '#fff',
     padding: 6,
-    shadowColor: typeof stylesGlobal.colors.primary[500] === 'string' ? stylesGlobal.colors.primary[500] : '#d63384',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
     elevation: 4,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 2px 4px rgba(214, 51, 132, 0.2)'
+    } : {
+      shadowColor: typeof stylesGlobal.colors.primary[500] === 'string' ? stylesGlobal.colors.primary[500] : '#d63384',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+    })
   },
   title: {
     fontSize: stylesGlobal.typography.headings.h3.fontSize,

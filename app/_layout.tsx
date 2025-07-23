@@ -21,12 +21,26 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="SplashScreen" options={{ headerShown: false }} />
-          <Stack.Screen name="LoginScreen" options={{ headerShown: false }} />
-          <Stack.Screen name="RegisterScreen" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="+not-found" />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen 
+            name="index"
+            options={{
+              gestureEnabled: false
+            }}
+          />
+          <Stack.Screen 
+            name="LoginScreen"
+            options={{
+              gestureEnabled: false
+            }}
+          />
+          <Stack.Screen name="RegisterScreen" />
+          <Stack.Screen 
+            name="(tabs)" 
+            options={{
+              gestureEnabled: false
+            }}
+          />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

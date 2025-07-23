@@ -133,14 +133,18 @@ const loginStyles = StyleSheet.create({
     borderRadius: 75, // Hace el contorno circular
     backgroundColor: '#fff',
     padding: 8,
-    shadowColor: stylesGlobal.colors.primary[500] as string,
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
     elevation: 6, // Para Android
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 3px 6px rgba(214, 51, 132, 0.25)'
+    } : {
+      shadowColor: stylesGlobal.colors.primary[500] as string,
+      shadowOffset: {
+        width: 0,
+        height: 3,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+    })
   },
   title: {
     fontSize: stylesGlobal.typography.headings.h3.fontSize,
