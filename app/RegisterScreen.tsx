@@ -247,7 +247,7 @@ const registerStyles = StyleSheet.create({
     })
   },
   title: {
-    fontSize: stylesGlobal.typography.headings.h3.fontSize,
+    fontSize: stylesGlobal.typography.scale['3xl'],
     fontFamily: 'SpaceMono',
     fontWeight: '700',
     color: typeof stylesGlobal.colors.primary[500] === 'string' ? stylesGlobal.colors.primary[500] : '#d63384',
@@ -255,7 +255,7 @@ const registerStyles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: stylesGlobal.typography.body.base.fontSize,
+    fontSize: stylesGlobal.typography.scale.base,
     color: typeof stylesGlobal.colors.text.secondary === 'string' ? stylesGlobal.colors.text.secondary : '#524842',
     marginBottom: 32,
     textAlign: 'center',
@@ -264,7 +264,7 @@ const registerStyles = StyleSheet.create({
     width: '100%',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    fontSize: stylesGlobal.typography.body.base.fontSize,
+    fontSize: stylesGlobal.typography.scale.base,
     lineHeight: 24,
     color: typeof stylesGlobal.colors.text.primary === 'string' ? stylesGlobal.colors.text.primary : '#2a241f',
     backgroundColor: '#fff',
@@ -283,7 +283,7 @@ const registerStyles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     paddingRight: 50, // Espacio para el ícono
-    fontSize: stylesGlobal.typography.body.base.fontSize,
+    fontSize: stylesGlobal.typography.scale.base,
     lineHeight: 24,
     color: typeof stylesGlobal.colors.text.primary === 'string' ? stylesGlobal.colors.text.primary : '#2a241f',
     backgroundColor: '#fff',
@@ -310,7 +310,7 @@ const registerStyles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: stylesGlobal.typography.body.base.fontSize,
+    fontSize: stylesGlobal.typography.scale.base,
   },
   error: {
     color: typeof stylesGlobal.colors.semantic.error.main === 'string' ? stylesGlobal.colors.semantic.error.main : '#e11d48',
@@ -327,7 +327,7 @@ const registerStyles = StyleSheet.create({
   },
   linkText: {
     color: typeof stylesGlobal.colors.primary[500] === 'string' ? stylesGlobal.colors.primary[500] : '#d63384',
-    fontSize: stylesGlobal.typography.body.small.fontSize,
+    fontSize: stylesGlobal.typography.scale.sm,
     fontWeight: '500',
     textAlign: 'center',
     textDecorationLine: 'underline',

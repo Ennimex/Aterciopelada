@@ -49,6 +49,24 @@ interface CategoriaData {
 
 const { width } = Dimensions.get('window');
 
+// Constantes de estilo
+const styleConstants = {
+  borderRadius: {
+    sm: 4,
+    md: 8,
+    lg: 12
+  },
+  spacing: stylesGlobal.spacing.scale,
+  colors: {
+    ...stylesGlobal.colors,
+    surface: {
+      ...stylesGlobal.colors.surface,
+      secondary: stylesGlobal.colors.surface.secondary,
+      tertiary: stylesGlobal.colors.surface.tertiary
+    }
+  }
+};
+
 const ProductosScreen: React.FC = () => {
   // Estado para controlar si se presionó el botón de buscar
   const [searchTriggered, setSearchTriggered] = useState(false);
@@ -294,7 +312,7 @@ const ProductosScreen: React.FC = () => {
           backgroundColor: typeof stylesGlobal.colors.surface.tertiary === 'string'
             ? stylesGlobal.colors.surface.tertiary
             : stylesGlobal.colors.surface.tertiary[500],
-          borderRadius: parseInt(stylesGlobal.borders.radius.md),
+          borderRadius: styleConstants.borderRadius.md,
           marginBottom: stylesGlobal.spacing.scale[2],
           overflow: 'hidden',
         }}
@@ -357,7 +375,7 @@ const ProductosScreen: React.FC = () => {
               : stylesGlobal.colors.semantic.success.light[500],
             paddingHorizontal: stylesGlobal.spacing.scale[1],
             paddingVertical: 2,
-            borderRadius: parseInt(stylesGlobal.borders.radius.sm),
+            borderRadius: styleConstants.borderRadius.sm,
             alignSelf: 'flex-start',
           }}
         >
@@ -415,7 +433,7 @@ const ProductosScreen: React.FC = () => {
                     backgroundColor: typeof stylesGlobal.colors.surface.tertiary === 'string'
                       ? stylesGlobal.colors.surface.tertiary
                       : stylesGlobal.colors.surface.tertiary[500],
-                    borderRadius: parseInt(stylesGlobal.borders.radius.lg),
+                    borderRadius: styleConstants.borderRadius.lg,
                     marginBottom: stylesGlobal.spacing.scale[6],
                     overflow: 'hidden',
                   }}
@@ -555,7 +573,7 @@ const ProductosScreen: React.FC = () => {
                             : stylesGlobal.colors.semantic.error.light[500]),
                       paddingHorizontal: stylesGlobal.spacing.scale[2],
                       paddingVertical: stylesGlobal.spacing.scale[1],
-                      borderRadius: parseInt(stylesGlobal.borders.radius.sm),
+                      borderRadius: styleConstants.borderRadius.sm,
                     }}
                   >
                     <Text
@@ -582,7 +600,7 @@ const ProductosScreen: React.FC = () => {
                     Alert.alert('Contacto', 'Funcionalidad de contacto por implementar');
                   }}
                 >
-                  <Text style={globalStyles.buttonPrimary}>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>
                     Contactar para más información
                   </Text>
                 </TouchableOpacity>
@@ -599,7 +617,7 @@ const ProductosScreen: React.FC = () => {
       <SafeAreaView style={globalStyles.screenCentered}>
         <ActivityIndicator
           size="large"
-          color={typeof stylesGlobal.colors.primary === 'string' ? stylesGlobal.colors.primary : (stylesGlobal.colors.primary[500] as string)}
+          color={stylesGlobal.colors.primary[500]}
         />
         <Text
           style={[
@@ -635,10 +653,8 @@ return (
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: typeof stylesGlobal.colors.surface.secondary === 'string'
-                ? stylesGlobal.colors.surface.secondary
-                : stylesGlobal.colors.surface.secondary[500],
-              borderRadius: parseInt(stylesGlobal.borders.radius.md),
+              backgroundColor: stylesGlobal.colors.surface.secondary,
+              borderRadius: styleConstants.borderRadius.md,
               paddingHorizontal: stylesGlobal.spacing.scale[3],
               paddingVertical: stylesGlobal.spacing.scale[4],
               marginBottom: stylesGlobal.spacing.scale[2],
@@ -661,7 +677,7 @@ return (
                 },
               ]}
               placeholder="Buscar productos..."
-              placeholderTextColor={typeof stylesGlobal.colors.text.primary === 'string' ? stylesGlobal.colors.text.primary : '#222'}
+              placeholderTextColor={stylesGlobal.colors.text.muted}
               value={searchQuery}
               onChangeText={text => {
                 setSearchQuery(text);
@@ -680,10 +696,8 @@ return (
               }}
               style={{
                 marginLeft: stylesGlobal.spacing.scale[2],
-                backgroundColor: typeof stylesGlobal.colors.primary === 'string'
-                  ? stylesGlobal.colors.primary
-                  : (stylesGlobal.colors.primary[500] as string),
-                borderRadius: parseInt(stylesGlobal.borders.radius.sm),
+                backgroundColor: stylesGlobal.colors.primary[500],
+                borderRadius: styleConstants.borderRadius.sm,
                 padding: 8,
                 justifyContent: 'center',
                 alignItems: 'center',
@@ -713,17 +727,20 @@ return (
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: typeof stylesGlobal.colors.surface.tertiary === 'string'
-                  ? stylesGlobal.colors.surface.tertiary
-                  : stylesGlobal.colors.surface.tertiary[500],
-                borderRadius: parseInt(stylesGlobal.borders.radius.md),
+                backgroundColor: stylesGlobal.colors.surface.tertiary,
+                borderRadius: styleConstants.borderRadius.md,
                 paddingHorizontal: stylesGlobal.spacing.scale[3],
                 paddingVertical: stylesGlobal.spacing.scale[2],
               }}
               onPress={() => setShowFilters((prev: boolean) => !prev)}
             >
               <Ionicons name={showFilters ? 'chevron-up' : 'chevron-down'} size={20} color={typeof stylesGlobal.colors.text.primary === 'string' ? stylesGlobal.colors.text.primary : stylesGlobal.colors.text.primary[500]} />
-              <Text style={[globalStyles.listItemTitle, { marginLeft: stylesGlobal.spacing.scale[2] }]}>Filtros</Text>
+              <Text style={{ 
+              fontSize: stylesGlobal.typography.scale.lg,
+              fontWeight: '600',
+              color: stylesGlobal.colors.text.primary,
+              marginLeft: stylesGlobal.spacing.scale[2]
+            }}>Filtros</Text>
             </TouchableOpacity>
             {showFilters && (
               <View style={{ marginTop: stylesGlobal.spacing.scale[6], padding: 24 }}>
@@ -804,11 +821,7 @@ return (
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[
-                typeof stylesGlobal.colors.primary === 'string'
-                  ? stylesGlobal.colors.primary
-                  : (stylesGlobal.colors.primary[500] as string)
-              ]}
+              colors={[stylesGlobal.colors.primary[500]]}
             />
           }
           ListEmptyComponent={

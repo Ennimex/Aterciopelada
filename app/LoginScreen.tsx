@@ -133,28 +133,24 @@ const loginStyles = StyleSheet.create({
     borderRadius: 75, // Hace el contorno circular
     backgroundColor: '#fff',
     padding: 8,
+    shadowColor: stylesGlobal.colors.primary[500] as string,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
     elevation: 6, // Para Android
-    ...(Platform.OS === 'web' ? {
-      boxShadow: '0 3px 6px rgba(214, 51, 132, 0.25)'
-    } : {
-      shadowColor: stylesGlobal.colors.primary[500] as string,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      shadowOpacity: 0.25,
-      shadowRadius: 6,
-    })
   },
   title: {
-    fontSize: stylesGlobal.typography.headings.h3.fontSize,
+    fontSize: stylesGlobal.typography.scale['3xl'],
     fontFamily: 'SpaceMono', // Cambia aquí si tienes Playfair Display cargada
     fontWeight: '700',
     color: typeof stylesGlobal.colors.primary[500] === 'string' ? stylesGlobal.colors.primary[500] : '#d63384',
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: stylesGlobal.typography.body.base.fontSize,
+    fontSize: stylesGlobal.typography.scale.base,
     color: typeof stylesGlobal.colors.text.secondary === 'string' ? stylesGlobal.colors.text.secondary : '#524842',
     marginBottom: 24,
   },
@@ -163,7 +159,7 @@ const loginStyles = StyleSheet.create({
     // Solo las propiedades válidas para TextInput
     paddingVertical: 12,
     paddingHorizontal: 16,
-    fontSize: stylesGlobal.typography.body.base.fontSize,
+    fontSize: stylesGlobal.typography.scale.base,
     lineHeight: 24,
     color: typeof stylesGlobal.colors.text.primary === 'string' ? stylesGlobal.colors.text.primary : '#2a241f',
     backgroundColor: '#fff',
@@ -182,7 +178,7 @@ const loginStyles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     paddingRight: 50, // Espacio para el ícono
-    fontSize: stylesGlobal.typography.body.base.fontSize,
+    fontSize: stylesGlobal.typography.scale.base,
     lineHeight: 24,
     color: typeof stylesGlobal.colors.text.primary === 'string' ? stylesGlobal.colors.text.primary : '#2a241f',
     backgroundColor: '#fff',
@@ -208,7 +204,7 @@ const loginStyles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: stylesGlobal.typography.body.base.fontSize,
+    fontSize: stylesGlobal.typography.scale.base,
   },
   error: {
     color: typeof stylesGlobal.colors.semantic.error.main === 'string' ? stylesGlobal.colors.semantic.error.main : '#e11d48',
@@ -222,11 +218,11 @@ const loginStyles = StyleSheet.create({
   },
   registerText: {
     color: typeof stylesGlobal.colors.text.secondary === 'string' ? stylesGlobal.colors.text.secondary : '#524842',
-    fontSize: stylesGlobal.typography.body.small.fontSize,
+    fontSize: stylesGlobal.typography.scale.sm,
   },
   registerTextBold: {
     color: typeof stylesGlobal.colors.primary[500] === 'string' ? stylesGlobal.colors.primary[500] : '#d63384',
-    fontSize: stylesGlobal.typography.body.small.fontSize,
+    fontSize: stylesGlobal.typography.scale.sm,
     fontWeight: '600',
   },
 });

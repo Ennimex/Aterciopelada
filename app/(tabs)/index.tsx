@@ -1,372 +1,599 @@
 import { useNavigation } from '@react-navigation/native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  FlatList,
   Image,
   RefreshControl,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useAuth } from '../../context/AuthProvider';
 import { publicAPI } from '../../services/api';
 import { globalStyles, mobileHelpers, stylesGlobal } from '../../styles/stylesGlobal';
 
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+// Types
+interface Categoria {
+  id: string;
+  _id?: string;
+  nombre: string;
+  descripcion: string;
+  imagenURL?: string;
+  hasImage?: boolean;
+}
+
+interface Localidad {
+  id: string;
+  _id?: string;
+  nombre: string;
+  empresas: number;
+}
+
+interface Comentario {
+  id: number;
+  texto: string;
+  usuario: string;
+  fecha: string;
+  rating: number;
+}
+
 type RootStackParamList = {
   ProductosScreen: { localidad: string };
-  // ...otros screens si los tienes
+  LoginScreen: undefined;
 };
 
-const index = () => {
-  // Estados con tipado correcto
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [categorias, setCategorias] = useState<any[]>([]);
-  const [localidades, setLocalidades] = useState<any[]>([]);
-  const [comentarios, setComentarios] = useState<any[]>([]);
-  const [comentarioTexto, setComentarioTexto] = useState("");
+// Constants
+const ICON_SETS = {
+  localidades: ["🏛️", "🌆", "🏙️", "🌃", "🌉", "🌄", "🌅", "🌇", "🏰", "⛪"],
+  categorias: {
+    negocios: ["🏢", "🏣", "🏤", "🏥", "🏦", "🏪", "🏫", "🏬"],
+    comida: ["🍽️", "🍴", "🍳", "🥘", "🥗", "🍕", "🌮", "🥪"],
+    entretenimiento: ["🎭", "🎨", "🎪", "🎬", "🎮", "🎯", "🎲"],
+    deportes: ["⚽", "🏀", "🏈", "⚾", "🎾", "🏐", "🏉"],
+    servicios: ["⚙️", "🔧", "🔨", "🛠️", "💻", "📱", "💡"],
+    compras: ["🛍️", "🛒", "👕", "👗", "👔", "👠", "👜"],
+    salud: ["⚕️", "💊", "🩺", "🔬", "🧬", "🦷"],
+    belleza: ["💄", "💅", "💇", "💈", "👗", "👠"],
+    educacion: ["📚", "✏️", "📝", "🎓", "🏫", "📖"],
+    otros: ["🌟", "✨", "💫", "⭐", "🔆", "📍"],
+  },
+} as const;
+
+// Utility functions
+const getRandomIcon = (iconos: readonly string[]): string => {
+  return iconos[Math.floor(Math.random() * iconos.length)];
+};
+
+const getCategoriaIcon = (nombre: string): string => {
+  const nombreLower = nombre.toLowerCase();
+  
+  const categoryMap: Record<string, keyof typeof ICON_SETS.categorias> = {
+    'restaurant|comida|aliment|café|bar|pizza': 'comida',
+    'entreten|divers|espectác|teatro|cine': 'entretenimiento',
+    'deport|fitness|gym|ejercicio|futbol': 'deportes',
+    'servicio|profesional|técnico|reparación': 'servicios',
+    'compra|tienda|ropa|calzado|mercado': 'compras',
+    'salud|médico|hospital|clínica': 'salud',
+    'belleza|estética|spa|peluquer': 'belleza',
+    'educación|escuela|curso|academia': 'educacion',
+    'negocio|empresa|corporativ|oficina': 'negocios',
+  };
+  
+  for (const [pattern, category] of Object.entries(categoryMap)) {
+    if (new RegExp(pattern).test(nombreLower)) {
+      return getRandomIcon(ICON_SETS.categorias[category]);
+    }
+  }
+  
+  return getRandomIcon(ICON_SETS.categorias.otros);
+};
+
+const getLocalidadIcon = (): string => {
+  return getRandomIcon(ICON_SETS.localidades);
+};
+
+// Custom hooks
+const useHomeData = () => {
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [localidades, setLocalidades] = useState<Localidad[]>([]);
+  const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
 
-  // Usar el contexto de autenticación real
-  const { user, isAuthenticated } = useAuth();
-
-  // Conjunto de iconos disponibles por tipo
-  const iconosDisponibles = {
-    localidades: ["🏛️", "🌆", "🏙️", "🌃", "🌉", "🌄", "🌅", "🌇", "🏰", "⛪", "🕌", "🕍", "🏢", "🏣", "🏤", "🏥", "🏦", "🏨", "🏪", "🏫"],
-    categorias: {
-      negocios: ["🏢", "🏣", "🏤", "🏥", "🏦", "🏪", "🏫", "🏬", "🏭", "🏯", "🏰"],
-      comida: ["🍽️", "🍴", "🍳", "🥘", "🥗", "🍕", "🌮", "🥪", "🍜", "🍱", "🍲"],
-      entretenimiento: ["🎭", "🎨", "🎪", "🎬", "🎮", "🎯", "🎲", "🎸", "🎹", "🎷", "🎺"],
-      deportes: ["⚽", "🏀", "🏈", "⚾", "🎾", "🏐", "🏉", "🎱", "🏓", "🏸", "🏊"],
-      servicios: ["⚙️", "🔧", "🔨", "🛠️", "💻", "📱", "💡", "🔌", "📡", "🛂", "🔑"],
-      compras: ["🛍️", "🛒", "👕", "👗", "👔", "👠", "👜", "💎", "�", "📦", "🏷️"],
-      salud: ["⚕️", "💊", "�", "🩺", "🔬", "🧬", "🦷", "👨‍⚕️", "🧪", "🩹", "💉"],
-      belleza: ["💄", "💅", "💇", "💈", "👗", "👠", "💃", "�", "💆", "👄", "💋"],
-      educacion: ["📚", "✏️", "📝", "🎓", "🏫", "📖", "🔬", "🎨", "🎵", "📐", "🗣️"],
-      otros: ["🌟", "✨", "💫", "⭐", "🔆", "📍", "🎯", "🎪", "🎨", "🎭", "�"]
-    }
-  };
-
-  // Función para obtener un icono aleatorio de un array
-  const getRandomIcon = (iconos: string[]) => {
-    return iconos[Math.floor(Math.random() * iconos.length)];
-  };
-
-  // Función para obtener icono de localidad
-  const getLocalidadIcon = (nombre: string) => {
-    return getRandomIcon(iconosDisponibles.localidades);
-  };
-
-  // Función para obtener icono de categoría basado en palabras clave
-  const getCategoriaIcon = (nombre: string) => {
-    const nombreLower = nombre.toLowerCase();
-    let categoria: keyof typeof iconosDisponibles.categorias = 'otros';
-
-    if (nombreLower.match(/restaurant|comida|aliment|café|bar|pizza|taco|sushi/)) {
-      categoria = 'comida';
-    } else if (nombreLower.match(/entreten|divers|espectác|teatro|cine|juego/)) {
-      categoria = 'entretenimiento';
-    } else if (nombreLower.match(/deport|fitness|gym|ejercicio|futbol|tenis/)) {
-      categoria = 'deportes';
-    } else if (nombreLower.match(/servicio|profesional|técnico|reparación/)) {
-      categoria = 'servicios';
-    } else if (nombreLower.match(/compra|tienda|ropa|calzado|mercado|comercio/)) {
-      categoria = 'compras';
-    } else if (nombreLower.match(/salud|médico|hospital|clínica|consultorio/)) {
-      categoria = 'salud';
-    } else if (nombreLower.match(/belleza|estética|spa|peluquer|manicur/)) {
-      categoria = 'belleza';
-    } else if (nombreLower.match(/educación|escuela|curso|academia|universidad/)) {
-      categoria = 'educacion';
-    } else if (nombreLower.match(/negocio|empresa|corporativ|oficina/)) {
-      categoria = 'negocios';
-    }
-
-    return getRandomIcon(iconosDisponibles.categorias[categoria]);
-  };
-
-  // Cargar datos iniciales
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  const loadInitialData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
 
-      // Cargar categorías de la API
+      // Load categories
       const categoriasResponse = await publicAPI.getCategorias();
+      const categoriasProcessed = categoriasResponse.data.map((categoria: any) => ({
+        ...categoria,
+        id: categoria._id || categoria.id,
+        hasImage: !!categoria.imagenURL,
+      }));
 
-      // Procesar categorías
-      const categoriasConImagenes = categoriasResponse.data.map(
-        (categoria: any) => {
-          return {
-            ...categoria,
-            id: categoria._id || categoria.id, // MongoDB usa _id
-            hasImage: !!categoria.imagenURL
-          };
-        }
-      );
-
-      // Intentar cargar localidades por separado
-      let localidadesConEmpresas = [];
+      // Load locations
+      let localidadesProcessed: Localidad[] = [];
       try {
         const localidadesResponse = await publicAPI.getLocalidades();
-
-        // La respuesta es un array directo, no un objeto con propiedad data
         if (Array.isArray(localidadesResponse)) {
-          localidadesConEmpresas = localidadesResponse.map(
-            (localidad: any) => ({
-              ...localidad,
-              id: localidad._id || localidad.id // MongoDB usa _id
-            })
-          );
-        } else {
-          throw new Error("Estructura de datos inválida");
+          localidadesProcessed = localidadesResponse.map((localidad: any) => ({
+            ...localidad,
+            id: localidad._id || localidad.id,
+          }));
         }
       } catch (localidadesError) {
-        console.error("Error al cargar localidades:", localidadesError);
-        localidadesConEmpresas = [];
+        console.warn('Error loading localidades:', localidadesError);
       }
 
-      // Inicializar array de comentarios vacío
-      const mockComentarios: Array<{
-        id: number;
-        texto: string;
-        usuario: string;
-        fecha: string;
-        rating: number;
-      }> = [];
-
-      setCategorias(categoriasConImagenes);
-      setLocalidades(localidadesConEmpresas);
-      setComentarios(mockComentarios);
-    } catch (error: any) {
-      const errorMessage =
-        error?.error || error?.message || "Error desconocido";
-      Alert.alert("Error cargando categorías", errorMessage);
-
-      // ...eliminado fallback a datos mock, solo muestra alerta...
+      setCategorias(categoriasProcessed);
+      setLocalidades(localidadesProcessed);
+      setComentarios([]); // Initialize empty comments
+      
+    } catch (err: any) {
+      const errorMessage = err?.error || err?.message || 'Error desconocido';
+      setError(errorMessage);
+      console.error('Error loading data:', err);
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  return {
+    categorias,
+    localidades,
+    comentarios,
+    isLoading,
+    error,
+    loadData,
+    setComentarios,
   };
+};
 
-  // Refresh control
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadInitialData();
-    setRefreshing(false);
-  };
+// Components
+const LoadingScreen: React.FC = () => (
+  <SafeAreaView style={globalStyles.screenBase}>
+    <StatusBar barStyle="dark-content" backgroundColor={stylesGlobal.colors.surface.primary} />
+    <View style={globalStyles.screenCentered}>
+      <Text style={[globalStyles.textSecondary, { fontSize: stylesGlobal.typography.scale.lg }]}>
+        Cargando...
+      </Text>
+    </View>
+  </SafeAreaView>
+);
 
-  // Manejar navegación a categoría específica
-  const handleCategoriaPress = async (categoria: any) => {
-    try {
-      // Aquí podrías navegar a una pantalla de productos por categoría
-      // Por ahora mostraremos un alert con información
-      Alert.alert(
-        categoria.nombre,
-        `${categoria.descripcion || "Explora esta categoría"}`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Ver Productos",
-            onPress: () => {
-              // TODO: Navegar a pantalla de productos filtrados por categoría
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error("Error handling categoria press:", error);
-    }
-  };
+const HeroSection: React.FC<{ onExplorarServicios: () => void }> = ({ onExplorarServicios }) => {
+  const heroStyles = useMemo(() => ({
+    container: {
+      backgroundColor: stylesGlobal.colors.primary[50],
+      paddingVertical: mobileHelpers.getDynamicSpacing(stylesGlobal.spacing.scale[16]),
+      paddingHorizontal: stylesGlobal.spacing.scale[4],
+      alignItems: 'center' as const,
+    },
+    title: {
+      fontSize: mobileHelpers.getDynamicFontSize(stylesGlobal.typography.scale['3xl']),
+      fontWeight: stylesGlobal.typography.weights.bold as any,
+      color: stylesGlobal.colors.text.primary,
+      textAlign: 'center' as const,
+      marginBottom: stylesGlobal.spacing.scale[3],
+    },
+    subtitle: {
+      fontSize: mobileHelpers.getDynamicFontSize(stylesGlobal.typography.scale.lg),
+      color: stylesGlobal.colors.text.secondary,
+      textAlign: 'center' as const,
+      lineHeight: stylesGlobal.typography.scale.lg * stylesGlobal.typography.lineHeights.relaxed,
+      marginBottom: stylesGlobal.spacing.scale[6],
+    },
+  }), []);
 
-  // Manejar navegación a localidad específica
-  const handleLocalidadPress = (localidad: any) => {
-    navigation.navigate("ProductosScreen", { localidad: localidad.nombre });
-  };
+  return (
+    <View style={heroStyles.container}>
+      <Text style={heroStyles.title}>Descubre La Aterciopelada</Text>
+      <Text style={heroStyles.subtitle}>
+        Encuentra los mejores servicios y lugares de tu ciudad en un solo lugar
+      </Text>
+      <TouchableOpacity
+        style={[globalStyles.buttonBase, globalStyles.buttonPrimary]}
+        onPress={onExplorarServicios}
+        activeOpacity={0.8}
+      >
+        <Text style={{ 
+          color: stylesGlobal.colors.primary.contrast,
+          fontWeight: stylesGlobal.typography.weights.semibold as any,
+          fontSize: stylesGlobal.typography.scale.base,
+        }}>
+          Explorar Servicios
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
-  // Manejar envío de comentario
-  const handleSubmitComentario = async () => {
-    if (!comentarioTexto.trim()) {
-      Alert.alert("Error", "Por favor escribe un comentario");
-      return;
-    }
+const CategoriaCard: React.FC<{
+  categoria: Categoria;
+  onPress: (categoria: Categoria) => void;
+}> = React.memo(({ categoria, onPress }) => {
+  const cardStyles = useMemo(() => ({
+    container: {
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderRadius: 12,
+      padding: stylesGlobal.spacing.scale[4],
+      marginRight: stylesGlobal.spacing.scale[3],
+      width: mobileHelpers.screen.width * 0.4,
+      alignItems: 'center' as const,
+      ...stylesGlobal.shadows.base,
+    },
+    imageContainer: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: stylesGlobal.colors.primary[100],
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      marginBottom: stylesGlobal.spacing.scale[2],
+    },
+    title: {
+      fontSize: stylesGlobal.typography.scale.sm,
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+      color: stylesGlobal.colors.text.primary,
+      textAlign: 'center' as const,
+      marginBottom: stylesGlobal.spacing.scale[1],
+    },
+    description: {
+      fontSize: stylesGlobal.typography.scale.xs,
+      color: stylesGlobal.colors.text.tertiary,
+      textAlign: 'center' as const,
+    },
+  }), []);
 
-    if (!isAuthenticated) {
-      Alert.alert("Inicia Sesión", "Debes iniciar sesión para comentar");
-      return;
-    }
+  return (
+    <TouchableOpacity
+      style={cardStyles.container}
+      onPress={() => onPress(categoria)}
+      activeOpacity={0.8}
+    >
+      {categoria.imagenURL && categoria.hasImage ? (
+        <Image
+          source={{ uri: categoria.imagenURL }}
+          style={[cardStyles.imageContainer, { backgroundColor: 'transparent' }]}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={cardStyles.imageContainer}>
+          <Text style={{ 
+            fontSize: stylesGlobal.typography.scale['2xl'],
+            color: stylesGlobal.colors.primary[500],
+          }}>
+            {getCategoriaIcon(categoria.nombre)}
+          </Text>
+        </View>
+      )}
+      <Text style={cardStyles.title}>{categoria.nombre}</Text>
+      <Text style={cardStyles.description} numberOfLines={2}>
+        {categoria.descripcion}
+      </Text>
+    </TouchableOpacity>
+  );
+});
 
-    try {
-      if (!user?.id) {
-        throw new Error("Usuario no identificado");
-      }
+const LocalidadItem: React.FC<{
+  localidad: Localidad;
+  onPress: (localidad: Localidad) => void;
+}> = React.memo(({ localidad, onPress }) => {
+  const itemStyles = useMemo(() => ({
+    container: {
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderRadius: 8,
+      padding: stylesGlobal.spacing.scale[4],
+      marginBottom: stylesGlobal.spacing.scale[3],
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      ...stylesGlobal.shadows.sm,
+    },
+    content: {
+      flex: 1,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+    },
+    title: {
+      fontSize: stylesGlobal.typography.scale.base,
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+      color: stylesGlobal.colors.text.primary,
+    },
+    subtitle: {
+      fontSize: stylesGlobal.typography.scale.sm,
+      color: stylesGlobal.colors.text.secondary,
+    },
+  }), []);
 
-      // En este punto deberías implementar la llamada real a tu API
-      Alert.alert("Información", "Función en desarrollo");
-      setComentarioTexto("");
+  return (
+    <TouchableOpacity
+      style={itemStyles.container}
+      onPress={() => onPress(localidad)}
+      activeOpacity={0.8}
+    >
+      <Text style={{ 
+        fontSize: stylesGlobal.typography.scale['2xl'],
+        marginRight: stylesGlobal.spacing.scale[3],
+      }}>
+        {getLocalidadIcon()}
+      </Text>
+      <View style={itemStyles.content}>
+        <Text style={itemStyles.title}>{localidad.nombre}</Text>
+        <Text style={itemStyles.subtitle}>{localidad.empresas} empresas</Text>
+      </View>
+      <Text style={{ color: stylesGlobal.colors.text.tertiary }}>›</Text>
+    </TouchableOpacity>
+  );
+});
+
+const CommentSection: React.FC<{
+  comentarios: Comentario[];
+  comentarioTexto: string;
+  setComentarioTexto: (text: string) => void;
+  onSubmitComentario: () => void;
+  isAuthenticated: boolean;
+  onLoginPress: () => void;
+}> = ({
+  comentarios,
+  comentarioTexto,
+  setComentarioTexto,
+  onSubmitComentario,
+  isAuthenticated,
+  onLoginPress,
+}) => {
+  const sectionStyles = useMemo(() => ({
+    title: {
+      fontSize: mobileHelpers.getDynamicFontSize(stylesGlobal.typography.scale['2xl']),
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+      color: stylesGlobal.colors.text.primary,
+      marginBottom: stylesGlobal.spacing.scale[4],
+      marginTop: stylesGlobal.spacing.scale[8],
+    },
+    inputContainer: {
+      backgroundColor: stylesGlobal.colors.surface.secondary,
+      borderRadius: 8,
+      padding: stylesGlobal.spacing.scale[4],
+      marginBottom: stylesGlobal.spacing.scale[4],
+    },
+    loginPrompt: {
+      backgroundColor: stylesGlobal.colors.primary[50],
+      borderRadius: 8,
+      padding: stylesGlobal.spacing.scale[4],
+      alignItems: 'center' as const,
+      marginTop: stylesGlobal.spacing.scale[4],
+    },
+  }), []);
+
+  return (
+    <>
+      <Text style={sectionStyles.title}>Lo que dicen nuestros usuarios</Text>
       
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "No se pudo enviar el comentario");
-    }
-  };
+      {isAuthenticated ? (
+        <View style={sectionStyles.inputContainer}>
+          <TextInput
+            style={[globalStyles.inputBase, { marginBottom: stylesGlobal.spacing.scale[3] }]}
+            placeholder="Comparte tu experiencia..."
+            value={comentarioTexto}
+            onChangeText={setComentarioTexto}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+          <TouchableOpacity
+            style={[globalStyles.buttonSm, globalStyles.buttonPrimary]}
+            onPress={onSubmitComentario}
+            activeOpacity={0.8}
+          >
+            <Text style={{
+              color: stylesGlobal.colors.primary.contrast,
+              fontWeight: stylesGlobal.typography.weights.semibold as any,
+            }}>
+              Enviar Comentario
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={sectionStyles.loginPrompt}>
+          <Text style={{
+            fontSize: stylesGlobal.typography.scale.base,
+            color: stylesGlobal.colors.text.primary,
+            fontWeight: stylesGlobal.typography.weights.semibold as any,
+            marginBottom: stylesGlobal.spacing.scale[2],
+          }}>
+            ¡Únete a nuestra comunidad!
+          </Text>
+          <Text style={{
+            fontSize: stylesGlobal.typography.scale.sm,
+            color: stylesGlobal.colors.text.secondary,
+            textAlign: 'center',
+            marginBottom: stylesGlobal.spacing.scale[4],
+          }}>
+            Inicia sesión para dejar comentarios y acceder a funciones exclusivas
+          </Text>
+          <TouchableOpacity
+            style={[globalStyles.buttonBase, globalStyles.buttonSecondary]}
+            onPress={onLoginPress}
+            activeOpacity={0.8}
+          >
+            <Text style={{
+              color: stylesGlobal.colors.secondary[500],
+              fontWeight: stylesGlobal.typography.weights.semibold as any,
+            }}>
+              Iniciar Sesión
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      
+      {comentarios.map((comentario) => (
+        <View
+          key={comentario.id}
+          style={{
+            backgroundColor: stylesGlobal.colors.surface.primary,
+            borderRadius: 8,
+            padding: stylesGlobal.spacing.scale[4],
+            marginBottom: stylesGlobal.spacing.scale[3],
+            borderLeftWidth: 3,
+            borderLeftColor: stylesGlobal.colors.primary[500],
+            ...stylesGlobal.shadows.sm,
+          }}
+        >
+          <Text style={{
+            fontSize: stylesGlobal.typography.scale.sm,
+            color: stylesGlobal.colors.text.primary,
+            lineHeight: stylesGlobal.typography.scale.sm * stylesGlobal.typography.lineHeights.normal,
+            marginBottom: stylesGlobal.spacing.scale[2],
+          }}>
+            "{comentario.texto}"
+          </Text>
+          <View style={globalStyles.flexRow}>
+            <Text style={{
+              fontSize: stylesGlobal.typography.scale.xs,
+              color: stylesGlobal.colors.text.secondary,
+              fontWeight: stylesGlobal.typography.weights.semibold as any,
+              flex: 1,
+            }}>
+              {comentario.usuario}
+            </Text>
+            <Text style={{
+              fontSize: stylesGlobal.typography.scale.xs,
+              color: stylesGlobal.colors.text.tertiary,
+            }}>
+              {comentario.fecha}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </>
+  );
+};
 
-  // Manejar navegación a explorar servicios
-  const handleExplorarServicios = async () => {
+// Main component
+const index: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { user, isAuthenticated } = useAuth();
+  const [comentarioTexto, setComentarioTexto] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const {
+    categorias,
+    localidades,
+    comentarios,
+    isLoading,
+    error,
+    loadData,
+  } = useHomeData();
+
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Handlers
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
+
+  const handleCategoriaPress = useCallback((categoria: Categoria) => {
+    Alert.alert(
+      categoria.nombre,
+      categoria.descripcion || 'Explora esta categoría',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Ver Productos',
+          onPress: () => {
+            // TODO: Navigate to products screen
+            console.log('Navigate to products for category:', categoria.id);
+          },
+        },
+      ]
+    );
+  }, []);
+
+  const handleLocalidadPress = useCallback((localidad: Localidad) => {
+    navigation.navigate('ProductosScreen', { localidad: localidad.nombre });
+  }, [navigation]);
+
+  const handleExplorarServicios = useCallback(async () => {
     try {
-      // Cargar servicios disponibles
       const serviciosResponse = await publicAPI.getServicios();
       const serviciosCount = serviciosResponse.data.length;
 
       Alert.alert(
-        "Explorar Servicios",
+        'Explorar Servicios',
         `Tenemos ${serviciosCount} servicios disponibles para ti.\n\n¿Qué te gustaría explorar?`,
         [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Ver Todos",
-            onPress: () => {
-              // TODO: Navegar a pantalla de servicios
-            }
-          },
-          {
-            text: "Por Categoría",
-            onPress: () => {
-              // TODO: Navegar a categorías
-            }
-          }
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Ver Todos', onPress: () => console.log('Navigate to all services') },
+          { text: 'Por Categoría', onPress: () => console.log('Navigate to categories') },
         ]
       );
-    } catch (error: any) {
-      Alert.alert(
-        "Error",
-        "No se pudieron cargar los servicios. Por favor, intenta más tarde.",
-        [{ text: "OK", onPress: () => {} }]
-      );
+    } catch (err) {
+      Alert.alert('Error', 'No se pudieron cargar los servicios. Por favor, intenta más tarde.');
     }
-  };
+  }, []);
 
-  // Estilos dinámicos basados en el tamaño de pantalla usando stylesGlobal correctamente
-  const dynamicStyles = StyleSheet.create({
-    heroContainer: {
-      backgroundColor: stylesGlobal.colors.primary[50] as string,
-      paddingVertical: mobileHelpers.getDynamicSpacing(
-        stylesGlobal.spacing.sections.md
-      ),
-      paddingHorizontal: stylesGlobal.spacing.mobile.content,
-      alignItems: "center" as const
-    },
-    heroTitle: {
-      fontSize: mobileHelpers.getDynamicFontSize(
-        stylesGlobal.typography.scale["3xl"]
-      ),
-      fontWeight: stylesGlobal.typography.weights.bold as any,
-      color: stylesGlobal.colors.text.primary as string,
-      textAlign: "center" as const,
-      marginBottom: stylesGlobal.spacing.scale[3]
-    },
-    heroSubtitle: {
-      fontSize: mobileHelpers.getDynamicFontSize(
-        stylesGlobal.typography.scale.lg
-      ),
-      color: stylesGlobal.colors.text.secondary as string,
-      textAlign: "center" as const,
-      lineHeight: Math.round(
-        stylesGlobal.typography.leading.relaxed *
-          stylesGlobal.typography.scale.lg
-      ),
-      marginBottom: stylesGlobal.spacing.scale[6]
-    },
-    sectionTitle: {
-      fontSize: mobileHelpers.getDynamicFontSize(
-        stylesGlobal.typography.scale["2xl"]
-      ),
-      fontWeight: stylesGlobal.typography.weights.semibold as any,
-      color: stylesGlobal.colors.text.primary as string,
-      marginBottom: stylesGlobal.spacing.scale[4],
-      marginTop: stylesGlobal.spacing.scale[8]
-    },
-    categoryCard: {
-      backgroundColor: stylesGlobal.colors.surface.primary as string,
-      borderRadius: 12, // lg radius
-      padding: stylesGlobal.spacing.scale[4],
-      marginRight: stylesGlobal.spacing.scale[3],
-      marginBottom: stylesGlobal.spacing.scale[3],
-      width: mobileHelpers.screen.width * 0.4,
-      alignItems: "center" as const,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 3
-    },
-    localidadCard: {
-      backgroundColor: stylesGlobal.colors.surface.primary as string,
-      borderRadius: 8, // md radius
-      padding: stylesGlobal.spacing.scale[4],
-      marginBottom: stylesGlobal.spacing.scale[3],
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 2
-    },
-    categoryTitle: {
-      fontSize: stylesGlobal.typography.scale.sm,
-      fontWeight: stylesGlobal.typography.weights.semibold as any,
-      color: stylesGlobal.colors.text.primary as string,
-      textAlign: "center" as const,
-      marginBottom: stylesGlobal.spacing.scale[1]
-    },
-    categoryDescription: {
-      fontSize: stylesGlobal.typography.scale.xs,
-      color: stylesGlobal.colors.text.tertiary as string,
-      textAlign: "center" as const
-    },
-    localidadTitle: {
-      fontSize: stylesGlobal.typography.scale.base,
-      fontWeight: stylesGlobal.typography.weights.semibold as any,
-      color: stylesGlobal.colors.text.primary as string,
-      marginBottom: stylesGlobal.spacing.scale[1]
-    },
-    localidadSubtitle: {
-      fontSize: stylesGlobal.typography.scale.sm,
-      color: stylesGlobal.colors.text.secondary as string
-    },
-    arrowIcon: {
-      color: stylesGlobal.colors.text.tertiary as string
+  const handleSubmitComentario = useCallback(async () => {
+    if (!comentarioTexto.trim()) {
+      Alert.alert('Error', 'Por favor escribe un comentario');
+      return;
     }
-  });
 
+    if (!isAuthenticated || !user?.id) {
+      Alert.alert('Inicia Sesión', 'Debes iniciar sesión para comentar');
+      return;
+    }
+
+    try {
+      // TODO: Implement actual API call
+      Alert.alert('Información', 'Función en desarrollo');
+      setComentarioTexto('');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'No se pudo enviar el comentario');
+    }
+  }, [comentarioTexto, isAuthenticated, user]);
+
+  const handleLoginPress = useCallback(() => {
+    navigation.navigate('LoginScreen');
+  }, [navigation]);
+
+  // Render loading state
   if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  // Render error state
+  if (error) {
     return (
       <SafeAreaView style={globalStyles.screenBase}>
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor={stylesGlobal.colors.surface.primary as string}
-        />
+        <StatusBar barStyle="dark-content" backgroundColor={stylesGlobal.colors.surface.primary} />
         <View style={globalStyles.screenCentered}>
-          <Text
-            style={{
-              fontSize: stylesGlobal.typography.scale.lg,
-              color: stylesGlobal.colors.text.secondary as string
-            }}
-          >
-            Cargando...
+          <Text style={[globalStyles.textSecondary, { textAlign: 'center', marginBottom: 16 }]}>
+            {error}
           </Text>
+          <TouchableOpacity
+            style={[globalStyles.buttonBase, globalStyles.buttonPrimary]}
+            onPress={loadData}
+            activeOpacity={0.8}
+          >
+            <Text style={{ color: stylesGlobal.colors.primary.contrast }}>
+              Reintentar
+            </Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -374,320 +601,73 @@ const index = () => {
 
   return (
     <SafeAreaView style={globalStyles.screenBase}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor={stylesGlobal.colors.surface.primary as string}
-      />
-
+      <StatusBar barStyle="dark-content" backgroundColor={stylesGlobal.colors.surface.primary} />
+      
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[stylesGlobal.colors.primary[500]]}
+            tintColor={stylesGlobal.colors.primary[500]}
+          />
         }
       >
-        {/* Hero Section */}
-        <View style={dynamicStyles.heroContainer}>
-          <Text style={dynamicStyles.heroTitle}>Descubre La Aterciopelada</Text>
-          <Text style={dynamicStyles.heroSubtitle}>
-            Encuentra los mejores servicios y lugares de tu ciudad en un solo
-            lugar
-          </Text>
-
-          <TouchableOpacity
-            style={[
-              globalStyles.buttonBase,
-              globalStyles.buttonPrimary,
-              { marginTop: stylesGlobal.spacing.scale[4] }
-            ]}
-            onPress={handleExplorarServicios}
-          >
-            <Text
-              style={{
-                color: stylesGlobal.colors.primary.contrast as string,
-                fontWeight: stylesGlobal.typography.weights.semibold as any
-              }}
-            >
-              Explorar Servicios
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Contenido Principal */}
+        <HeroSection onExplorarServicios={handleExplorarServicios} />
+        
         <View style={globalStyles.screenContent}>
-          {/* Categorías Section */}
-          <Text style={dynamicStyles.sectionTitle}>Categorías Principales</Text>
-
-          <ScrollView
+          {/* Categories Section */}
+          <Text style={{
+            fontSize: mobileHelpers.getDynamicFontSize(stylesGlobal.typography.scale['2xl']),
+            fontWeight: stylesGlobal.typography.weights.semibold as any,
+            color: stylesGlobal.colors.text.primary,
+            marginBottom: stylesGlobal.spacing.scale[4],
+            marginTop: stylesGlobal.spacing.scale[8],
+          }}>
+            Categorías Principales
+          </Text>
+          
+          <FlatList
+            data={categorias}
+            renderItem={({ item }) => (
+              <CategoriaCard categoria={item} onPress={handleCategoriaPress} />
+            )}
+            keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: stylesGlobal.spacing.scale[4] }}
-          >
-            {categorias.map((categoria) => (
-              <TouchableOpacity
-                key={categoria.id}
-                style={dynamicStyles.categoryCard}
-                onPress={() => handleCategoriaPress(categoria)}
-              >
-                {/* Imagen de Cloudinary o placeholder */}
-                {categoria.imagenURL && categoria.hasImage ? (
-                  <Image
-                    source={{ uri: categoria.imagenURL }}
-                    style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 30,
-                      marginBottom: stylesGlobal.spacing.scale[2]
-                    }}
-                    resizeMode="cover"
-                    onError={(error) => {
-                      // Error silencioso al cargar imagen
-                    }}
-                  />
-                ) : (
-                  <View
-                    style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 30,
-                      backgroundColor: stylesGlobal.colors
-                        .primary[100] as string,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginBottom: stylesGlobal.spacing.scale[2]
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: stylesGlobal.typography.scale["2xl"],
-                        color: stylesGlobal.colors.primary[500] as string
-                      }}
-                    >
-                      {getCategoriaIcon(categoria.nombre)}
-                    </Text>
-                  </View>
-                )}
+            contentContainerStyle={{ paddingBottom: stylesGlobal.spacing.scale[4] }}
+          />
 
-                <Text
-                  style={{
-                    fontSize: stylesGlobal.typography.scale.sm,
-                    fontWeight: stylesGlobal.typography.weights.semibold as any,
-                    color: stylesGlobal.colors.text.primary as string,
-                    textAlign: "center",
-                    marginBottom: stylesGlobal.spacing.scale[1]
-                  }}
-                >
-                  {categoria.nombre}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: stylesGlobal.typography.scale.xs,
-                    color: stylesGlobal.colors.text.tertiary as string,
-                    textAlign: "center"
-                  }}
-                >
-                  {categoria.descripcion}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Localidades Section */}
-          <Text style={dynamicStyles.sectionTitle}>
+          {/* Locations Section */}
+          <Text style={{
+            fontSize: mobileHelpers.getDynamicFontSize(stylesGlobal.typography.scale['2xl']),
+            fontWeight: stylesGlobal.typography.weights.semibold as any,
+            color: stylesGlobal.colors.text.primary,
+            marginBottom: stylesGlobal.spacing.scale[4],
+            marginTop: stylesGlobal.spacing.scale[8],
+          }}>
             Explora por Localidades
           </Text>
+          
           {localidades.map((localidad) => (
-            <TouchableOpacity
+            <LocalidadItem
               key={localidad.id}
-              style={dynamicStyles.localidadCard}
-              onPress={() => handleLocalidadPress(localidad)}
-            >
-              <Text
-                style={{
-                  fontSize: stylesGlobal.typography.scale["2xl"],
-                  marginRight: stylesGlobal.spacing.scale[3]
-                }}
-              >
-                {getLocalidadIcon(localidad.nombre)}
-              </Text>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text
-                  style={{
-                    fontSize: stylesGlobal.typography.scale.base,
-                    fontWeight: stylesGlobal.typography.weights.semibold as any,
-                    color: stylesGlobal.colors.text.primary as string
-                  }}
-                >
-                  {localidad.nombre}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: stylesGlobal.typography.scale.sm,
-                    color: stylesGlobal.colors.text.secondary as string
-                  }}
-                >
-                  {localidad.empresas}
-                </Text>
-              </View>
-              <Text
-                style={{ color: stylesGlobal.colors.text.tertiary as string }}
-              >
-                ›
-              </Text>
-            </TouchableOpacity>
+              localidad={localidad}
+              onPress={handleLocalidadPress}
+            />
           ))}
 
-          {/* Comentarios Section */}
-          <Text style={dynamicStyles.sectionTitle}>
-            Lo que dicen nuestros usuarios
-          </Text>
-
-          {/* Input para nuevo comentario */}
-          {isAuthenticated && (
-            <View
-              style={{
-                backgroundColor: stylesGlobal.colors.surface
-                  .secondary as string,
-                borderRadius: 8, // md radius
-                padding: stylesGlobal.spacing.scale[4],
-                marginBottom: stylesGlobal.spacing.scale[4]
-              }}
-            >
-              <TextInput
-                style={[
-                  globalStyles.inputBase,
-                  { marginBottom: stylesGlobal.spacing.scale[3] }
-                ]}
-                placeholder="Comparte tu experiencia..."
-                value={comentarioTexto}
-                onChangeText={setComentarioTexto}
-                multiline
-                numberOfLines={3}
-              />
-              <TouchableOpacity
-                style={[globalStyles.buttonSm, globalStyles.buttonPrimary]}
-                onPress={handleSubmitComentario}
-              >
-                <Text
-                  style={{
-                    color: stylesGlobal.colors.primary.contrast as string,
-                    fontWeight: stylesGlobal.typography.weights.semibold as any
-                  }}
-                >
-                  Enviar Comentario
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Lista de comentarios */}
-          {comentarios.map((comentario) => (
-            <View
-              key={comentario.id}
-              style={{
-                backgroundColor: stylesGlobal.colors.surface.primary as string,
-                borderRadius: 8, // md radius
-                padding: stylesGlobal.spacing.scale[4],
-                marginBottom: stylesGlobal.spacing.scale[3],
-                borderLeftWidth: 3,
-                borderLeftColor: stylesGlobal.colors.primary[500] as string,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.05,
-                shadowRadius: 2,
-                elevation: 1
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: stylesGlobal.typography.scale.sm,
-                  color: stylesGlobal.colors.text.primary as string,
-                  lineHeight: Math.round(
-                    stylesGlobal.typography.leading.normal *
-                      stylesGlobal.typography.scale.sm
-                  ),
-                  marginBottom: stylesGlobal.spacing.scale[2]
-                }}
-              >
-                "{comentario.texto}"
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between"
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: stylesGlobal.typography.scale.xs,
-                    color: stylesGlobal.colors.text.secondary as string,
-                    fontWeight: stylesGlobal.typography.weights.semibold as any
-                  }}
-                >
-                  {comentario.usuario}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: stylesGlobal.typography.scale.xs,
-                    color: stylesGlobal.colors.text.tertiary as string
-                  }}
-                >
-                  {comentario.fecha}
-                </Text>
-              </View>
-            </View>
-          ))}
-
-          {/* Mensaje para usuarios no autenticados */}
-          {!isAuthenticated && (
-            <View
-              style={{
-                backgroundColor: stylesGlobal.colors.surface.accent as string,
-                borderRadius: 8, // md radius
-                padding: stylesGlobal.spacing.scale[4],
-                alignItems: "center",
-                marginTop: stylesGlobal.spacing.scale[4]
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: stylesGlobal.typography.scale.base,
-                  color: stylesGlobal.colors.text.primary as string,
-                  fontWeight: stylesGlobal.typography.weights.semibold as any,
-                  marginBottom: stylesGlobal.spacing.scale[2]
-                }}
-              >
-                ¡Únete a nuestra comunidad!
-              </Text>
-              <Text
-                style={{
-                  fontSize: stylesGlobal.typography.scale.sm,
-                  color: stylesGlobal.colors.text.secondary as string,
-                  textAlign: "center",
-                  marginBottom: stylesGlobal.spacing.scale[4]
-                }}
-              >
-                Inicia sesión para dejar comentarios y acceder a funciones
-                exclusivas
-              </Text>
-              <TouchableOpacity
-                style={[globalStyles.buttonBase, globalStyles.buttonSecondary]}
-                onPress={() => {
-                  // Navegar a login
-                  Alert.alert("Login", "Navegando a inicio de sesión");
-                }}
-              >
-                <Text
-                  style={{
-                    color: stylesGlobal.colors.secondary[500] as string,
-                    fontWeight: stylesGlobal.typography.weights.semibold as any
-                  }}
-                >
-                  Iniciar Sesión
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {/* Comments Section */}
+          <CommentSection
+            comentarios={comentarios}
+            comentarioTexto={comentarioTexto}
+            setComentarioTexto={setComentarioTexto}
+            onSubmitComentario={handleSubmitComentario}
+            isAuthenticated={isAuthenticated}
+            onLoginPress={handleLoginPress}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
