@@ -41,6 +41,13 @@ export default function RootLayout() {
               gestureEnabled: false
             }}
           />
+          <Stack.Screen 
+            name="auth/ScreenPerfil" 
+            options={{
+              headerShown: true,
+              title: 'Editar Perfil',
+            }}
+          />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

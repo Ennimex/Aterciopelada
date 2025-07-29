@@ -26,12 +26,13 @@ interface ErrorResponse {
 }
 
 interface UserData {
-  id?: number;
-  nombre: string;
+  id?: number | string;
+  name: string;
   email: string;
-  telefono?: string;
-  rol?: string;
-  activo?: boolean;
+  phone?: string;
+  role?: string;
+  emailVerified?: boolean;
+  createdAt?: string;
 }
 
 interface ProductoData {
@@ -518,6 +519,46 @@ export const adminAPI = {
   deleteTalla: async (tallaId: number | string): Promise<ApiResponse> => {
     try {
       const response = await api.delete(`/tallas/${tallaId}`);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  },
+};
+
+// Funciones para gestión de perfil de usuario
+export const profileAPI = {
+  // Obtener perfil del usuario actual
+  getProfile: async (): Promise<ApiResponse<UserData>> => {
+    try {
+      const response = await api.get('/perfil');
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Actualizar perfil del usuario
+  updateProfile: async (profileData: {
+    name: string;
+    email: string;
+    phone: string;
+  }): Promise<ApiResponse<UserData>> => {
+    try {
+      const response = await api.put('/perfil', profileData);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Cambiar contraseña del usuario
+  changePassword: async (passwordData: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<ApiResponse> => {
+    try {
+      const response = await api.put('/perfil/password', passwordData);
       return response;
     } catch (error) {
       throw error;

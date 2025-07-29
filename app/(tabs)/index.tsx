@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -7,18 +8,16 @@ import {
   RefreshControl,
   ScrollView,
   StatusBar,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { useAuth } from '../../context/AuthProvider';
 import { publicAPI } from '../../services/api';
 import { globalStyles, mobileHelpers, stylesGlobal } from '../../styles/stylesGlobal';
-
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // Types
 interface Categoria {
@@ -48,6 +47,7 @@ interface Comentario {
 type RootStackParamList = {
   ProductosScreen: { localidad: string };
   LoginScreen: undefined;
+  'auth/ScreenPerfil': undefined;
 };
 
 // Constants
@@ -330,7 +330,7 @@ const LocalidadItem: React.FC<{
       </Text>
       <View style={itemStyles.content}>
         <Text style={itemStyles.title}>{localidad.nombre}</Text>
-        <Text style={itemStyles.subtitle}>{localidad.empresas} empresas</Text>
+        <Text style={itemStyles.subtitle}>{localidad.empresas} </Text>
       </View>
       <Text style={{ color: stylesGlobal.colors.text.tertiary }}>›</Text>
     </TouchableOpacity>
@@ -479,10 +479,96 @@ const CommentSection: React.FC<{
   );
 };
 
+// Floating Menu Component
+const FloatingMenu: React.FC<{
+  isAuthenticated: boolean;
+  onLogout: () => void;
+  onProfilePress: () => void;
+}> = ({ isAuthenticated, onLogout, onProfilePress }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const menuStyles = StyleSheet.create({
+    fabContainer: {
+      position: 'absolute',
+      top: stylesGlobal.spacing.scale[8],
+      right: stylesGlobal.spacing.scale[4],
+      zIndex: 1000,
+    },
+    fabButton: {
+      backgroundColor: stylesGlobal.colors.primary[500],
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...stylesGlobal.shadows.base,
+    },
+    menuContainer: {
+      position: 'absolute',
+      top: 72,
+      right: 0,
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderRadius: 8,
+      padding: stylesGlobal.spacing.scale[2],
+      minWidth: 150,
+      ...stylesGlobal.shadows.lg,
+    },
+    menuItem: {
+      padding: stylesGlobal.spacing.scale[3],
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    menuItemText: {
+      fontSize: stylesGlobal.typography.scale.base,
+      color: stylesGlobal.colors.text.primary,
+      marginLeft: stylesGlobal.spacing.scale[2],
+    },
+  });
+
+  if (!isAuthenticated) return null;
+
+  return (
+    <View style={menuStyles.fabContainer}>
+      {isMenuOpen && (
+        <View style={menuStyles.menuContainer}>
+          <TouchableOpacity
+            style={menuStyles.menuItem}
+            onPress={onProfilePress}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>👤</Text>
+            <Text style={menuStyles.menuItemText}>Editar Perfil</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={menuStyles.menuItem}
+            onPress={onLogout}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>🚪</Text>
+            <Text style={menuStyles.menuItemText}>Cerrar Sesión</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <TouchableOpacity
+        style={menuStyles.fabButton}
+        onPress={() => setIsMenuOpen(!isMenuOpen)}
+        activeOpacity={0.8}
+      >
+        <Text style={{ 
+          fontSize: stylesGlobal.typography.scale.xl,
+          color: stylesGlobal.colors.primary.contrast,
+        }}>
+          ☰
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 // Main component
-const index: React.FC = () => {
+const Index: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const [comentarioTexto, setComentarioTexto] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -569,6 +655,20 @@ const index: React.FC = () => {
 
   const handleLoginPress = useCallback(() => {
     navigation.navigate('LoginScreen');
+  }, [navigation]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+      Alert.alert('Éxito', 'Sesión cerrada correctamente');
+      navigation.replace('LoginScreen');
+    } catch (err: any) {
+      Alert.alert('Error', 'No se pudo cerrar la sesión');
+    }
+  }, [logout, navigation]);
+
+  const handleProfilePress = useCallback(() => {
+    navigation.navigate('auth/ScreenPerfil');
   }, [navigation]);
 
   // Render loading state
@@ -670,8 +770,14 @@ const index: React.FC = () => {
           />
         </View>
       </ScrollView>
+
+      <FloatingMenu
+        isAuthenticated={isAuthenticated}
+        onLogout={handleLogout}
+        onProfilePress={handleProfilePress}
+      />
     </SafeAreaView>
   );
 };
 
-export default index;
+export default Index;
