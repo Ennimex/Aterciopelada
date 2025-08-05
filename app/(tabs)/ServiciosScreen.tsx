@@ -224,7 +224,6 @@ const ArtisanServicesScreen = () => {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Hero Section */}
         <View style={styles.heroContainer}>
-          <Text style={styles.heroIcon}>🌿</Text>
           <Text style={styles.heroTitle}>Artesanía Huasteca</Text>
         </View>
         <Text style={styles.heroSubtitle}>

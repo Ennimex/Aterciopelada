@@ -1,19 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Alert, FlatList, Image, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthProvider';
 import { publicAPI } from '../../services/api';
@@ -479,20 +467,46 @@ const CommentSection: React.FC<{
   );
 };
 
-// Floating Menu Component
-const FloatingMenu: React.FC<{
+// Sidebar Menu Component
+const SidebarMenu: React.FC<{
   isAuthenticated: boolean;
   onLogout: () => void;
   onProfilePress: () => void;
 }> = ({ isAuthenticated, onLogout, onProfilePress }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const menuStyles = StyleSheet.create({
+  const sidebarStyles = StyleSheet.create({
+    overlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      zIndex: 999,
+      display: isSidebarOpen ? 'flex' : 'none',
+    },
+    sidebarContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: mobileHelpers.screen.width * 0.7,
+      height: '100%',
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      padding: stylesGlobal.spacing.scale[4],
+      zIndex: 1000,
+      transform: [{ translateX: isSidebarOpen ? 0 : -mobileHelpers.screen.width * 0.7 }],
+      shadowColor: '#000',
+      shadowOffset: { width: 2, height: 0 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 5,
+    },
     fabContainer: {
       position: 'absolute',
       top: stylesGlobal.spacing.scale[8],
-      right: stylesGlobal.spacing.scale[4],
-      zIndex: 1000,
+      left: stylesGlobal.spacing.scale[4],
+      zIndex: 1001,
     },
     fabButton: {
       backgroundColor: stylesGlobal.colors.primary[500],
@@ -503,65 +517,87 @@ const FloatingMenu: React.FC<{
       alignItems: 'center',
       ...stylesGlobal.shadows.base,
     },
-    menuContainer: {
-      position: 'absolute',
-      top: 72,
-      right: 0,
-      backgroundColor: stylesGlobal.colors.surface.primary,
-      borderRadius: 8,
-      padding: stylesGlobal.spacing.scale[2],
-      minWidth: 150,
-      ...stylesGlobal.shadows.lg,
-    },
     menuItem: {
-      padding: stylesGlobal.spacing.scale[3],
       flexDirection: 'row',
       alignItems: 'center',
+      paddingVertical: stylesGlobal.spacing.scale[3],
+      paddingHorizontal: stylesGlobal.spacing.scale[2],
+      borderBottomWidth: 1,
+      borderBottomColor: stylesGlobal.colors.text.tertiary + '33',
     },
     menuItemText: {
       fontSize: stylesGlobal.typography.scale.base,
       color: stylesGlobal.colors.text.primary,
-      marginLeft: stylesGlobal.spacing.scale[2],
+      marginLeft: stylesGlobal.spacing.scale[3],
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+    },
+    closeButton: {
+      alignSelf: 'flex-end',
+      padding: stylesGlobal.spacing.scale[2],
+    },
+    closeButtonText: {
+      fontSize: stylesGlobal.typography.scale.lg,
+      color: stylesGlobal.colors.text.primary,
     },
   });
 
   if (!isAuthenticated) return null;
 
   return (
-    <View style={menuStyles.fabContainer}>
-      {isMenuOpen && (
-        <View style={menuStyles.menuContainer}>
+    <>
+      <TouchableOpacity
+        style={sidebarStyles.overlay}
+        onPress={() => setIsSidebarOpen(false)}
+        activeOpacity={1}
+      />
+      {!isSidebarOpen && (
+        <View style={sidebarStyles.fabContainer}>
           <TouchableOpacity
-            style={menuStyles.menuItem}
-            onPress={onProfilePress}
+            style={sidebarStyles.fabButton}
+            onPress={() => setIsSidebarOpen(true)}
             activeOpacity={0.8}
           >
-            <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>👤</Text>
-            <Text style={menuStyles.menuItemText}>Editar Perfil</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={menuStyles.menuItem}
-            onPress={onLogout}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>🚪</Text>
-            <Text style={menuStyles.menuItemText}>Cerrar Sesión</Text>
+            <Text style={{
+              fontSize: stylesGlobal.typography.scale.xl,
+              color: stylesGlobal.colors.primary.contrast,
+            }}>
+              ☰
+            </Text>
           </TouchableOpacity>
         </View>
       )}
-      <TouchableOpacity
-        style={menuStyles.fabButton}
-        onPress={() => setIsMenuOpen(!isMenuOpen)}
-        activeOpacity={0.8}
-      >
-        <Text style={{ 
-          fontSize: stylesGlobal.typography.scale.xl,
-          color: stylesGlobal.colors.primary.contrast,
-        }}>
-          ☰
-        </Text>
-      </TouchableOpacity>
-    </View>
+      <View style={sidebarStyles.sidebarContainer}>
+        <TouchableOpacity
+          style={sidebarStyles.closeButton}
+          onPress={() => setIsSidebarOpen(false)}
+          activeOpacity={0.8}
+        >
+          <Text style={sidebarStyles.closeButtonText}>✕</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={sidebarStyles.menuItem}
+          onPress={() => {
+            onProfilePress();
+            setIsSidebarOpen(false);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>👤</Text>
+          <Text style={sidebarStyles.menuItemText}>Editar Perfil</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={sidebarStyles.menuItem}
+          onPress={() => {
+            onLogout();
+            setIsSidebarOpen(false);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>🚪</Text>
+          <Text style={sidebarStyles.menuItemText}>Cerrar Sesión</Text>
+        </TouchableOpacity>
+      </View>
+    </>
   );
 };
 
@@ -771,7 +807,7 @@ const Index: React.FC = () => {
         </View>
       </ScrollView>
 
-      <FloatingMenu
+      <SidebarMenu
         isAuthenticated={isAuthenticated}
         onLogout={handleLogout}
         onProfilePress={handleProfilePress}

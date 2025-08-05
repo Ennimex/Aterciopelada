@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, FlatList, Image, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Image, Linking, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { publicAPI } from '../../services/api';
 import { globalStyles, stylesGlobal } from '../../styles/stylesGlobal';
@@ -597,7 +597,12 @@ const ProductosScreen: React.FC = () => {
                     { marginTop: stylesGlobal.spacing.scale[6] },
                   ]}
                   onPress={() => {
-                    Alert.alert('Contacto', 'Funcionalidad de contacto por implementar');
+                    const numero = '527712170532'; // Número de WhatsApp con código de país (México)
+                    const mensaje = `Hola, me interesa el producto "${selectedProduct?.nombre}". ¿Podrían darme más información?`;
+                    const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
+                    Linking.openURL(url).catch(() => {
+                      Alert.alert('Error', 'No se pudo abrir WhatsApp. Asegúrate de que esté instalado en tu dispositivo.');
+                    });
                   }}
                 >
                   <Text style={{ color: '#fff', fontWeight: '600' }}>
