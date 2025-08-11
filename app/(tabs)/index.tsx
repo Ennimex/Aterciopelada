@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Image, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, Modal, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthProvider';
 import { publicAPI } from '../../services/api';
@@ -35,6 +35,7 @@ interface Comentario {
 type RootStackParamList = {
   ProductosScreen: { localidad: string };
   LoginScreen: undefined;
+  ServiciosScreen: undefined;
   'auth/ScreenPerfil': undefined;
 };
 
@@ -208,8 +209,7 @@ const HeroSection: React.FC<{ onExplorarServicios: () => void }> = ({ onExplorar
 
 const CategoriaCard: React.FC<{
   categoria: Categoria;
-  onPress: (categoria: Categoria) => void;
-}> = React.memo(({ categoria, onPress }) => {
+}> = React.memo(({ categoria }) => {
   const cardStyles = useMemo(() => ({
     container: {
       backgroundColor: stylesGlobal.colors.surface.primary,
@@ -244,11 +244,7 @@ const CategoriaCard: React.FC<{
   }), []);
 
   return (
-    <TouchableOpacity
-      style={cardStyles.container}
-      onPress={() => onPress(categoria)}
-      activeOpacity={0.8}
-    >
+    <View style={cardStyles.container}>
       {categoria.imagenURL && categoria.hasImage ? (
         <Image
           source={{ uri: categoria.imagenURL }}
@@ -269,7 +265,7 @@ const CategoriaCard: React.FC<{
       <Text style={cardStyles.description} numberOfLines={2}>
         {categoria.descripcion}
       </Text>
-    </TouchableOpacity>
+    </View>
   );
 });
 
@@ -467,137 +463,174 @@ const CommentSection: React.FC<{
   );
 };
 
-// Sidebar Menu Component
-const SidebarMenu: React.FC<{
-  isAuthenticated: boolean;
+// Simple Menu Modal Component
+const MenuModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
   onLogout: () => void;
   onProfilePress: () => void;
-}> = ({ isAuthenticated, onLogout, onProfilePress }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  const sidebarStyles = StyleSheet.create({
+}> = ({ visible, onClose, onLogout, onProfilePress }) => {
+  const modalStyles = StyleSheet.create({
     overlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
+      flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      zIndex: 999,
-      display: isSidebarOpen ? 'flex' : 'none',
-    },
-    sidebarContainer: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: mobileHelpers.screen.width * 0.7,
-      height: '100%',
-      backgroundColor: stylesGlobal.colors.surface.primary,
-      padding: stylesGlobal.spacing.scale[4],
-      zIndex: 1000,
-      transform: [{ translateX: isSidebarOpen ? 0 : -mobileHelpers.screen.width * 0.7 }],
-      shadowColor: '#000',
-      shadowOffset: { width: 2, height: 0 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 5,
-    },
-    fabContainer: {
-      position: 'absolute',
-      top: stylesGlobal.spacing.scale[8],
-      left: stylesGlobal.spacing.scale[4],
-      zIndex: 1001,
-    },
-    fabButton: {
-      backgroundColor: stylesGlobal.colors.primary[500],
-      width: 56,
-      height: 56,
-      borderRadius: 28,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    modalContainer: {
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderRadius: 12,
+      padding: stylesGlobal.spacing.scale[6],
+      margin: stylesGlobal.spacing.scale[4],
+      minWidth: mobileHelpers.screen.width * 0.7,
+      maxWidth: mobileHelpers.screen.width * 0.9,
       ...stylesGlobal.shadows.base,
+    },
+    title: {
+      fontSize: stylesGlobal.typography.scale.xl,
+      fontWeight: stylesGlobal.typography.weights.bold as any,
+      color: stylesGlobal.colors.text.primary,
+      textAlign: 'center',
+      marginBottom: stylesGlobal.spacing.scale[6],
     },
     menuItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: stylesGlobal.spacing.scale[3],
-      paddingHorizontal: stylesGlobal.spacing.scale[2],
-      borderBottomWidth: 1,
-      borderBottomColor: stylesGlobal.colors.text.tertiary + '33',
+      paddingVertical: stylesGlobal.spacing.scale[4],
+      paddingHorizontal: stylesGlobal.spacing.scale[3],
+      borderRadius: 8,
+      marginBottom: stylesGlobal.spacing.scale[2],
     },
     menuItemText: {
       fontSize: stylesGlobal.typography.scale.base,
       color: stylesGlobal.colors.text.primary,
       marginLeft: stylesGlobal.spacing.scale[3],
-      fontWeight: stylesGlobal.typography.weights.semibold as any,
+      fontWeight: stylesGlobal.typography.weights.medium as any,
     },
     closeButton: {
-      alignSelf: 'flex-end',
-      padding: stylesGlobal.spacing.scale[2],
+      backgroundColor: stylesGlobal.colors.surface.secondary,
+      paddingVertical: stylesGlobal.spacing.scale[3],
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: stylesGlobal.spacing.scale[4],
     },
     closeButtonText: {
-      fontSize: stylesGlobal.typography.scale.lg,
-      color: stylesGlobal.colors.text.primary,
+      fontSize: stylesGlobal.typography.scale.base,
+      color: stylesGlobal.colors.text.secondary,
+      fontWeight: stylesGlobal.typography.weights.medium as any,
     },
   });
 
-  if (!isAuthenticated) return null;
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={modalStyles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity
+          style={modalStyles.modalContainer}
+          activeOpacity={1}
+          onPress={() => {}} // Prevent modal close when tapping inside
+        >
+          <Text style={modalStyles.title}>Mi Cuenta</Text>
+          
+          <TouchableOpacity
+            style={modalStyles.menuItem}
+            onPress={() => {
+              onProfilePress();
+              onClose();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>👤</Text>
+            <Text style={modalStyles.menuItemText}>Editar Perfil</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={modalStyles.menuItem}
+            onPress={() => {
+              onLogout();
+              onClose();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>🚪</Text>
+            <Text style={modalStyles.menuItemText}>Cerrar Sesión</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={modalStyles.closeButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <Text style={modalStyles.closeButtonText}>Cancelar</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+// Header with Menu Button
+const Header: React.FC<{
+  isAuthenticated: boolean;
+  onMenuPress: () => void;
+}> = ({ isAuthenticated, onMenuPress }) => {
+  const headerStyles = StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: stylesGlobal.spacing.scale[4],
+      paddingVertical: stylesGlobal.spacing.scale[3],
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderBottomWidth: 1,
+      borderBottomColor: stylesGlobal.colors.surface.secondary,
+    },
+    title: {
+      fontSize: stylesGlobal.typography.scale.lg,
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+      color: stylesGlobal.colors.text.primary,
+    },
+    menuButton: {
+      padding: stylesGlobal.spacing.scale[2],
+      borderRadius: 8,
+      backgroundColor: stylesGlobal.colors.primary[50],
+    },
+  });
+
+  if (!isAuthenticated) {
+    return (
+      <View style={headerStyles.container}>
+        <Text style={headerStyles.title}>La Aterciopelada</Text>
+        <View style={{ width: 40 }} />
+      </View>
+    );
+  }
 
   return (
-    <>
+    <View style={headerStyles.container}>
+      <Text style={headerStyles.title}>La Aterciopelada</Text>
       <TouchableOpacity
-        style={sidebarStyles.overlay}
-        onPress={() => setIsSidebarOpen(false)}
-        activeOpacity={1}
-      />
-      {!isSidebarOpen && (
-        <View style={sidebarStyles.fabContainer}>
-          <TouchableOpacity
-            style={sidebarStyles.fabButton}
-            onPress={() => setIsSidebarOpen(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={{
-              fontSize: stylesGlobal.typography.scale.xl,
-              color: stylesGlobal.colors.primary.contrast,
-            }}>
-              ☰
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <View style={sidebarStyles.sidebarContainer}>
-        <TouchableOpacity
-          style={sidebarStyles.closeButton}
-          onPress={() => setIsSidebarOpen(false)}
-          activeOpacity={0.8}
-        >
-          <Text style={sidebarStyles.closeButtonText}>✕</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={sidebarStyles.menuItem}
-          onPress={() => {
-            onProfilePress();
-            setIsSidebarOpen(false);
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>👤</Text>
-          <Text style={sidebarStyles.menuItemText}>Editar Perfil</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={sidebarStyles.menuItem}
-          onPress={() => {
-            onLogout();
-            setIsSidebarOpen(false);
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>🚪</Text>
-          <Text style={sidebarStyles.menuItemText}>Cerrar Sesión</Text>
-        </TouchableOpacity>
-      </View>
-    </>
+        style={headerStyles.menuButton}
+        onPress={onMenuPress}
+        activeOpacity={0.7}
+      >
+        <Text style={{
+          fontSize: stylesGlobal.typography.scale.lg,
+          color: stylesGlobal.colors.primary[500],
+        }}>
+          ☰
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 };
 
@@ -607,6 +640,7 @@ const Index: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const [comentarioTexto, setComentarioTexto] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [isMenuModalVisible, setIsMenuModalVisible] = useState(false);
 
   const {
     categorias,
@@ -629,45 +663,14 @@ const Index: React.FC = () => {
     setRefreshing(false);
   }, [loadData]);
 
-  const handleCategoriaPress = useCallback((categoria: Categoria) => {
-    Alert.alert(
-      categoria.nombre,
-      categoria.descripcion || 'Explora esta categoría',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Ver Productos',
-          onPress: () => {
-            // TODO: Navigate to products screen
-            console.log('Navigate to products for category:', categoria.id);
-          },
-        },
-      ]
-    );
-  }, []);
-
   const handleLocalidadPress = useCallback((localidad: Localidad) => {
     navigation.navigate('ProductosScreen', { localidad: localidad.nombre });
   }, [navigation]);
 
-  const handleExplorarServicios = useCallback(async () => {
-    try {
-      const serviciosResponse = await publicAPI.getServicios();
-      const serviciosCount = serviciosResponse.data.length;
-
-      Alert.alert(
-        'Explorar Servicios',
-        `Tenemos ${serviciosCount} servicios disponibles para ti.\n\n¿Qué te gustaría explorar?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Ver Todos', onPress: () => console.log('Navigate to all services') },
-          { text: 'Por Categoría', onPress: () => console.log('Navigate to categories') },
-        ]
-      );
-    } catch (err) {
-      Alert.alert('Error', 'No se pudieron cargar los servicios. Por favor, intenta más tarde.');
-    }
-  }, []);
+  const handleExplorarServicios = useCallback(() => {
+    // Navega a la pantalla de servicios.
+    navigation.navigate('ServiciosScreen');
+  }, [navigation]);
 
   const handleSubmitComentario = useCallback(async () => {
     if (!comentarioTexto.trim()) {
@@ -707,6 +710,14 @@ const Index: React.FC = () => {
     navigation.navigate('auth/ScreenPerfil');
   }, [navigation]);
 
+  const handleMenuPress = useCallback(() => {
+    setIsMenuModalVisible(true);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setIsMenuModalVisible(false);
+  }, []);
+
   // Render loading state
   if (isLoading) {
     return <LoadingScreen />;
@@ -739,6 +750,11 @@ const Index: React.FC = () => {
     <SafeAreaView style={globalStyles.screenBase}>
       <StatusBar barStyle="dark-content" backgroundColor={stylesGlobal.colors.surface.primary} />
       
+      <Header 
+        isAuthenticated={isAuthenticated}
+        onMenuPress={handleMenuPress}
+      />
+      
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
@@ -768,7 +784,7 @@ const Index: React.FC = () => {
           <FlatList
             data={categorias}
             renderItem={({ item }) => (
-              <CategoriaCard categoria={item} onPress={handleCategoriaPress} />
+              <CategoriaCard categoria={item} />
             )}
             keyExtractor={(item) => item.id}
             horizontal
@@ -807,8 +823,10 @@ const Index: React.FC = () => {
         </View>
       </ScrollView>
 
-      <SidebarMenu
-        isAuthenticated={isAuthenticated}
+      {/* Menu Modal */}
+      <MenuModal
+        visible={isMenuModalVisible}
+        onClose={handleCloseModal}
         onLogout={handleLogout}
         onProfilePress={handleProfilePress}
       />

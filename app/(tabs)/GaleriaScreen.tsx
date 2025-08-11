@@ -1,21 +1,21 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Video as ExpoVideo, ResizeMode } from 'expo-av';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Dimensions, FlatList, Image, Modal, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { publicAPI } from '../../services/api';
+import { globalStyles, mobileHelpers, stylesGlobal } from '../../styles/stylesGlobal';
 
-// Tipo para foto según modelo backend
-type Photo = {
+// Types
+interface Photo {
   _id?: string;
   url: string;
   titulo: string;
   descripcion?: string;
   fechaSubida?: string;
-};
+}
 
-// Interfaz para videos/reels según modelo backend
-type Video = {
+interface Video {
   _id?: string;
   url: string;
   titulo: string;
@@ -26,489 +26,753 @@ type Video = {
   miniatura?: string;
   miniaturaPublicId?: string;
   fechaSubida?: string;
-};
+}
 
-// Estado para fotos de la API
-type Evento = {
+interface Evento {
   _id?: string;
   titulo: string;
   descripcion?: string;
-  fecha?: string; // Fecha del evento (ISO)
+  fecha?: string;
   ubicacion?: string;
-  horaInicio?: string; // "HH:mm"
-  horaFin?: string;   // "HH:mm"
-  fechaEliminacion?: string; // Fecha de eliminación automática (ISO)
-};
+  horaInicio?: string;
+  horaFin?: string;
+  fechaEliminacion?: string;
+}
 
-const GaleriaScreen: React.FC = () => {
-  const [photosData, setPhotosData] = useState<Photo[]>([]);
-  const [videosData, setVideosData] = useState<Video[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingVideos, setLoadingVideos] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [errorVideos, setErrorVideos] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [videoModalVisible, setVideoModalVisible] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
-  // Estado para eventos y modal de eventos
-  const [eventosModalVisible, setEventosModalVisible] = useState(false);
+// Custom Hook for Gallery Data
+const useGalleryData = () => {
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
+  
+  const [loadingPhotos, setLoadingPhotos] = useState(true);
+  const [loadingVideos, setLoadingVideos] = useState(true);
   const [loadingEventos, setLoadingEventos] = useState(false);
+  
+  const [errorPhotos, setErrorPhotos] = useState<string | null>(null);
+  const [errorVideos, setErrorVideos] = useState<string | null>(null);
   const [errorEventos, setErrorEventos] = useState<string | null>(null);
-  // Función para cargar eventos al abrir el modal
-  const handleOpenEventosModal = async () => {
-    setEventosModalVisible(true);
-    setLoadingEventos(true);
-    setErrorEventos(null);
+
+  const loadPhotos = useCallback(async () => {
     try {
+      setLoadingPhotos(true);
+      setErrorPhotos(null);
+      const response = await publicAPI.getFotos();
+      setPhotos(Array.isArray(response) ? response : []);
+    } catch (err: any) {
+      setErrorPhotos(err?.error || 'Error al cargar fotos');
+      setPhotos([]);
+    } finally {
+      setLoadingPhotos(false);
+    }
+  }, []);
+
+  const loadVideos = useCallback(async () => {
+    try {
+      setLoadingVideos(true);
+      setErrorVideos(null);
+      const response = await publicAPI.getVideos();
+      setVideos(Array.isArray(response) ? response : []);
+    } catch (err: any) {
+      setErrorVideos(err?.error || 'Error al cargar videos');
+      setVideos([]);
+    } finally {
+      setLoadingVideos(false);
+    }
+  }, []);
+
+  const loadEventos = useCallback(async () => {
+    try {
+      setLoadingEventos(true);
+      setErrorEventos(null);
       const response = await publicAPI.getEventos();
-      if (Array.isArray(response)) {
-        setEventos(response);
-      } else {
-        setEventos([]);
-      }
+      setEventos(Array.isArray(response) ? response : []);
     } catch (err: any) {
       setErrorEventos(err?.error || 'Error al cargar eventos');
+      setEventos([]);
     } finally {
       setLoadingEventos(false);
     }
+  }, []);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadPhotos(), loadVideos(), loadEventos()]);
+  }, [loadPhotos, loadVideos, loadEventos]);
+
+  useEffect(() => {
+    loadPhotos();
+    loadVideos();
+    loadEventos();
+  }, [loadPhotos, loadVideos, loadEventos]);
+
+  return {
+    photos,
+    videos,
+    eventos,
+    loadingPhotos,
+    loadingVideos,
+    loadingEventos,
+    errorPhotos,
+    errorVideos,
+    errorEventos,
+    refreshAll,
+    loadEventos,
   };
-  const [eventModalVisible, setEventModalVisible] = useState(false);
-  const [events, setEvents] = useState<any[]>([]);
-  useEffect(() => {
-    // Cargar eventos solo una vez
-    const fetchEventos = async () => {
-      try {
-        if (publicAPI.getEventos) {
-          const response = await publicAPI.getEventos();
-          if (Array.isArray(response)) {
-            setEvents(response);
-          } else {
-            setEvents([]);
-          }
-        }
-      } catch (err: any) {
-        // No mostrar error, solo dejar vacío
-        setEvents([]);
-      }
-    };
-    fetchEventos();
-  }, []);
+};
 
-  useEffect(() => {
-    const fetchFotos = async () => {
-      try {
-        const response = await publicAPI.getFotos();
-        // La API retorna un array directamente
-        if (Array.isArray(response)) {
-          setPhotosData(response);
-        } else {
-          setPhotosData([]);
-        }
-      } catch (err: any) {
-        setError(err?.error || 'Error al cargar fotos');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFotos();
-    const fetchVideos = async () => {
-      try {
-        const response = await publicAPI.getVideos();
-        if (Array.isArray(response)) {
-          setVideosData(response);
-        } else {
-          setVideosData([]);
-        }
-      } catch (err: any) {
-        setErrorVideos(err?.error || 'Error al cargar videos');
-      } finally {
-        setLoadingVideos(false);
-      }
-    };
-    fetchVideos();
-  }, []);
+// Components
+const LoadingComponent: React.FC<{ message?: string }> = ({ message = "Cargando..." }) => (
+  <View style={globalStyles.screenCentered}>
+    <ActivityIndicator size="large" color={stylesGlobal.colors.primary[500]} />
+    <Text style={[globalStyles.textSecondary, { marginTop: stylesGlobal.spacing.scale[2] }]}>
+      {message}
+    </Text>
+  </View>
+);
 
-  // Obtener dimensiones de pantalla y calcular columnas
-  const { width } = Dimensions.get('window');
-  const numColumns = 2; // Siempre dos columnas en la sección de fotos
-  const cardMargin = 12;
-  const cardWidth = (width - (numColumns + 1) * cardMargin) / numColumns;
+const ErrorComponent: React.FC<{ 
+  message: string;
+  onRetry: () => void;
+}> = ({ message, onRetry }) => (
+  <View style={globalStyles.screenCentered}>
+    <Text style={[globalStyles.textSecondary, { textAlign: 'center', marginBottom: stylesGlobal.spacing.scale[4] }]}>
+      {message}
+    </Text>
+    <TouchableOpacity
+      style={[globalStyles.buttonBase, globalStyles.buttonPrimary]}
+      onPress={onRetry}
+      activeOpacity={0.8}
+    >
+      <Text style={{ color: stylesGlobal.colors.primary.contrast }}>
+        Reintentar
+      </Text>
+    </TouchableOpacity>
+  </View>
+);
 
-  // Dividir fotos en columnas
-  const columns: Photo[][] = Array.from({ length: numColumns }, () => []);
-  photosData.forEach((photo, index) => {
-    columns[index % numColumns].push(photo);
-  });
-
-  // Estilos inyectados directamente
-  const styles = StyleSheet.create({
+const Header: React.FC<{ onEventsPress: () => void }> = ({ onEventsPress }) => {
+  const headerStyles = useMemo(() => ({
     container: {
-      flex: 1,
-      backgroundColor: '#fefcf3', // Fondo cálido
+      flexDirection: 'row' as const,
+      justifyContent: 'space-between' as const,
+      alignItems: 'center' as const,
+      paddingHorizontal: stylesGlobal.spacing.scale[4],
+      paddingVertical: stylesGlobal.spacing.scale[3],
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderBottomWidth: 1,
+      borderBottomColor: stylesGlobal.colors.surface.secondary,
     },
-    sectionTitle: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: '#2a241f',
-      marginVertical: 12,
-      marginHorizontal: cardMargin,
+    title: {
+      fontSize: stylesGlobal.typography.scale.xl,
+      fontWeight: stylesGlobal.typography.weights.bold as any,
+      color: stylesGlobal.colors.text.primary,
     },
-    reelScroll: {
-      paddingHorizontal: cardMargin,
-      paddingBottom: 12,
-      backgroundColor: '#fdf2f4', // Fondo para sección de reels
-    },
-    reelCard: {
-      backgroundColor: '#ffffff',
+    eventButton: {
+      backgroundColor: stylesGlobal.colors.primary[50],
+      padding: stylesGlobal.spacing.scale[2],
       borderRadius: 12,
-      padding: 12,
-      marginRight: 12,
-      width: 180, // Ancho fijo para tarjetas
-      height: 240, // Altura optimizada para reels
-      shadowColor: '#2a241f',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 4,
-      elevation: 2,
-      alignItems: 'center',
-      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: stylesGlobal.colors.primary[200],
     },
-    reelIconContainer: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: '#fce7eb',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 12,
-    },
-    reelIcon: {
-      fontSize: 48,
-      color: '#d63384',
-    },
-    reelTitle: {
-      fontSize: 16,
-      fontWeight: '500',
-      color: '#2a241f',
-      textAlign: 'center',
-      marginBottom: 8,
-    },
-    reelDescription: {
-      fontSize: 12,
-      color: '#8b7d74',
-      textAlign: 'center',
-      lineHeight: 18,
-    },
-    photoContainer: {
-      backgroundColor: '#f7f6f4', // Fondo para sección de fotos
-      paddingTop: 12,
-      paddingBottom: 16,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginHorizontal: cardMargin,
-    },
-    column: {
-      flex: 1,
-      marginRight: cardMargin,
-    },
-    lastColumn: {
-      flex: 1,
-      marginRight: 0,
-    },
-    photoCard: {
-      backgroundColor: '#ffffff',
-      borderRadius: 12,
-      padding: 12,
-      marginBottom: cardMargin,
-      shadowColor: '#2a241f',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.15,
-      shadowRadius: 2,
-      elevation: 2,
-      alignItems: 'center',
-    },
-    photoIconContainer: {
-      width: cardWidth - 24, // Ajustar al ancho de la tarjeta
-      height: (cardWidth - 24) * 1.2, // Proporción ajustada para imágenes
-      borderRadius: 12,
-      backgroundColor: '#fef7e0',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    photoIcon: {
-      fontSize: 40,
-      color: '#e6a756',
-    },
-    photoTitle: {
-      fontSize: 16,
-      fontWeight: '500',
-      color: '#2a241f',
-      textAlign: 'center',
-      marginBottom: 4,
-    },
-    photoDescription: {
-      fontSize: 12,
-      color: '#8b7d74',
-      textAlign: 'center',
-      lineHeight: 18,
-    },
-  });
+  }), []);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Botón flotante estilo TikTok para eventos (solo uno, tamaño reducido) */}
-      <View style={{ position: 'absolute', top: 44, right: 16, zIndex: 20 }}>
-        <Pressable
-          onPress={handleOpenEventosModal}
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: 24,
-            padding: 6,
-            shadowColor: '#2a241f',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.18,
-            shadowRadius: 3,
-            elevation: 3,
-            borderWidth: 2,
-            borderColor: '#d63384',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <MaterialCommunityIcons name="calendar-month" size={22} color="#d63384" />
-        </Pressable>
-      </View>
-      <ScrollView showsVerticalScrollIndicator={false}>
-      {/* Modal de eventos */}
-      <Modal
-        visible={eventosModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEventosModalVisible(false)}
+    <View style={headerStyles.container}>
+      <Text style={headerStyles.title}>Galería</Text>
+      <TouchableOpacity
+        style={headerStyles.eventButton}
+        onPress={onEventsPress}
+        activeOpacity={0.7}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, alignItems: 'center', width: '100%', maxWidth: 400, maxHeight: '80%' }}>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#d63384', marginBottom: 10, textAlign: 'center' }}>Eventos</Text>
-            {loadingEventos ? (
-              <ActivityIndicator size="large" color="#d63384" style={{ marginTop: 32 }} />
-            ) : errorEventos ? (
-              <Text style={{ color: 'red', textAlign: 'center', marginTop: 32 }}>{errorEventos}</Text>
-            ) : eventos.length === 0 ? (
-              <Text style={{ color: '#8b7d74', textAlign: 'center', marginTop: 32 }}>No hay eventos disponibles.</Text>
-            ) : (
-              <ScrollView style={{ width: '100%', maxHeight: 260 }}>
-                {eventos.map((evento) => (
-                  <View key={evento._id} style={{ backgroundColor: '#fdf2f4', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#d63384', shadowColor: '#2a241f', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 2, elevation: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#d63384', marginBottom: 4 }}>{evento.titulo}</Text>
-                    <Text style={{ fontSize: 14, color: '#2a241f', marginBottom: 6 }}>{evento.descripcion}</Text>
-                    {evento.fecha && (
-                      <Text style={{ fontSize: 13, color: '#8b7d74' }}>Fecha: {new Date(evento.fecha).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}</Text>
-                    )}
-                    {evento.ubicacion && (
-                      <Text style={{ fontSize: 13, color: '#8b7d74' }}>Ubicación: {evento.ubicacion}</Text>
-                    )}
-                    {(evento.horaInicio || evento.horaFin) && (
-                      <Text style={{ fontSize: 13, color: '#8b7d74' }}>Horario: {evento.horaInicio || ''}{evento.horaInicio && evento.horaFin ? ' - ' : ''}{evento.horaFin || ''}</Text>
-                    )}
-                    {evento.fechaEliminacion && (
-                      <Text style={{ fontSize: 12, color: '#d63384', marginTop: 2 }}>Se eliminará el: {new Date(evento.fechaEliminacion).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}</Text>
-                    )}
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-            <Pressable
-              onPress={() => setEventosModalVisible(false)}
-              style={{ backgroundColor: '#d63384', borderRadius: 8, paddingHorizontal: 32, paddingVertical: 10, marginTop: 8 }}
-            >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 17 }}>Cerrar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-        {/* Sección de Reels Destacados (ahora funcional con videos de la API) */}
-        <Text style={styles.sectionTitle}>Reels Destacados</Text>
-        {loadingVideos ? (
-          <ActivityIndicator size="large" color="#d63384" style={{ marginTop: 32 }} />
-        ) : errorVideos ? (
-          <Text style={{ color: 'red', textAlign: 'center', marginTop: 32 }}>{errorVideos}</Text>
+        <MaterialCommunityIcons 
+          name="calendar-month" 
+          size={24} 
+          color={stylesGlobal.colors.primary[500]} 
+        />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const VideoCard: React.FC<{
+  video: Video;
+  onPress: () => void;
+}> = React.memo(({ video, onPress }) => {
+  const { width } = Dimensions.get('window');
+  const cardWidth = width * 0.45;
+  
+  const cardStyles = useMemo(() => ({
+    container: {
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderRadius: 12,
+      padding: stylesGlobal.spacing.scale[3],
+      marginRight: stylesGlobal.spacing.scale[3],
+      width: cardWidth,
+      ...stylesGlobal.shadows.base,
+    },
+    thumbnailContainer: {
+      width: cardWidth - (stylesGlobal.spacing.scale[3] * 2),
+      height: (cardWidth - (stylesGlobal.spacing.scale[3] * 2)) * 1.2,
+      borderRadius: 8,
+      backgroundColor: stylesGlobal.colors.primary[50],
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      marginBottom: stylesGlobal.spacing.scale[2],
+      overflow: 'hidden' as const,
+      position: 'relative' as const,
+    },
+    playOverlay: {
+      position: 'absolute' as const,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    },
+    title: {
+      fontSize: stylesGlobal.typography.scale.sm,
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+      color: stylesGlobal.colors.text.primary,
+      marginBottom: stylesGlobal.spacing.scale[1],
+    },
+    description: {
+      fontSize: stylesGlobal.typography.scale.xs,
+      color: stylesGlobal.colors.text.secondary,
+      lineHeight: stylesGlobal.typography.scale.xs * stylesGlobal.typography.lineHeights.relaxed,
+    },
+  }), [cardWidth]);
+
+  return (
+    <TouchableOpacity
+      style={cardStyles.container}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={cardStyles.thumbnailContainer}>
+        {video.miniatura ? (
+          <>
+            <Image 
+              source={{ uri: video.miniatura }} 
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+            />
+            <View style={cardStyles.playOverlay}>
+              <Ionicons name="play-circle" size={48} color="white" />
+            </View>
+          </>
         ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.reelScroll}
-            snapToInterval={192}
-            decelerationRate="fast"
-          >
-            {videosData.map((video) => (
-              <TouchableOpacity
-                key={video._id}
-                style={[styles.reelCard, { borderWidth: 1, borderColor: '#e6a756' }]}
-                onPress={() => {
-                  setSelectedVideo(video);
-                  setVideoModalVisible(true);
-                }}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.reelIconContainer, { backgroundColor: video.miniatura ? '#fce7eb' : '#fef7e0', borderWidth: video.miniatura ? 0 : 1, borderColor: '#e6a756', padding: 0, width: 130, height: 130, borderRadius: 20, justifyContent: 'center', alignItems: 'center', position: 'relative' }]}> 
-                  {video.miniatura ? (
-                    <>
-                      <Image source={{ uri: video.miniatura }} style={{ width: 130, height: 130, borderRadius: 20, backgroundColor: 'transparent' }} />
-                      <View style={{ position: 'absolute', top: 0, left: 0, width: 130, height: 130, justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="play-circle" size={54} color="#e6a756" style={{ opacity: 0.85 }} />
-                      </View>
-                    </>
-                  ) : (
-                    <Ionicons name="play-circle" size={90} color="#e6a756" />
+          <Ionicons 
+            name="play-circle" 
+            size={60} 
+            color={stylesGlobal.colors.primary[400]} 
+          />
+        )}
+      </View>
+      <Text style={cardStyles.title} numberOfLines={2}>
+        {video.titulo}
+      </Text>
+      <Text style={cardStyles.description} numberOfLines={3}>
+        {video.descripcion || 'Sin descripción'}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+const PhotoCard: React.FC<{
+  photo: Photo;
+  onPress: () => void;
+  cardWidth: number;
+}> = React.memo(({ photo, onPress, cardWidth }) => {
+  const cardStyles = useMemo(() => ({
+    container: {
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderRadius: 8,
+      padding: stylesGlobal.spacing.scale[2],
+      marginBottom: stylesGlobal.spacing.scale[3],
+      width: cardWidth,
+      ...stylesGlobal.shadows.sm,
+    },
+    imageContainer: {
+      width: cardWidth - (stylesGlobal.spacing.scale[2] * 2),
+      height: (cardWidth - (stylesGlobal.spacing.scale[2] * 2)) * 0.75,
+      borderRadius: 6,
+      overflow: 'hidden' as const,
+      marginBottom: stylesGlobal.spacing.scale[2],
+      backgroundColor: stylesGlobal.colors.surface.secondary,
+    },
+    title: {
+      fontSize: stylesGlobal.typography.scale.xs,
+      fontWeight: stylesGlobal.typography.weights.medium as any,
+      color: stylesGlobal.colors.text.primary,
+      marginBottom: stylesGlobal.spacing.scale[1],
+    },
+    description: {
+      fontSize: stylesGlobal.typography.scale['2xs'],
+      color: stylesGlobal.colors.text.tertiary,
+      lineHeight: stylesGlobal.typography.scale['2xs'] * stylesGlobal.typography.lineHeights.normal,
+    },
+  }), [cardWidth]);
+
+  return (
+    <TouchableOpacity
+      style={cardStyles.container}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={cardStyles.imageContainer}>
+        <Image 
+          source={{ uri: photo.url }} 
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+        />
+      </View>
+      <Text style={cardStyles.title} numberOfLines={2}>
+        {photo.titulo}
+      </Text>
+      <Text style={cardStyles.description} numberOfLines={2}>
+        {photo.descripcion}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+const EventModal: React.FC<{
+  visible: boolean;
+  eventos: Evento[];
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onRefresh: () => void;
+}> = ({ visible, eventos, loading, error, onClose, onRefresh }) => {
+  const modalStyles = useMemo(() => ({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+    },
+    container: {
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderRadius: 16,
+      padding: stylesGlobal.spacing.scale[6],
+      margin: stylesGlobal.spacing.scale[4],
+      maxWidth: mobileHelpers.screen.width * 0.9,
+      maxHeight: mobileHelpers.screen.height * 0.8,
+      width: '100%',
+      ...stylesGlobal.shadows.base,
+    },
+    title: {
+      fontSize: stylesGlobal.typography.scale['2xl'],
+      fontWeight: stylesGlobal.typography.weights.bold as any,
+      color: stylesGlobal.colors.text.primary,
+      textAlign: 'center' as const,
+      marginBottom: stylesGlobal.spacing.scale[4],
+    },
+    eventCard: {
+      backgroundColor: stylesGlobal.colors.primary[50],
+      borderRadius: 8,
+      padding: stylesGlobal.spacing.scale[3],
+      marginBottom: stylesGlobal.spacing.scale[3],
+      borderLeftWidth: 3,
+      borderLeftColor: stylesGlobal.colors.primary[500],
+    },
+    eventTitle: {
+      fontSize: stylesGlobal.typography.scale.base,
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+      color: stylesGlobal.colors.text.primary,
+      marginBottom: stylesGlobal.spacing.scale[1],
+    },
+    eventDescription: {
+      fontSize: stylesGlobal.typography.scale.sm,
+      color: stylesGlobal.colors.text.secondary,
+      marginBottom: stylesGlobal.spacing.scale[2],
+    },
+    eventDetail: {
+      fontSize: stylesGlobal.typography.scale.xs,
+      color: stylesGlobal.colors.text.tertiary,
+      marginBottom: stylesGlobal.spacing.scale[1],
+    },
+    closeButton: {
+      backgroundColor: stylesGlobal.colors.primary[500],
+      paddingVertical: stylesGlobal.spacing.scale[3],
+      paddingHorizontal: stylesGlobal.spacing.scale[6],
+      borderRadius: 8,
+      alignItems: 'center' as const,
+      marginTop: stylesGlobal.spacing.scale[4],
+    },
+    closeButtonText: {
+      color: stylesGlobal.colors.primary.contrast,
+      fontSize: stylesGlobal.typography.scale.base,
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+    },
+  }), []);
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('es-MX', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={modalStyles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity
+          style={modalStyles.container as any}
+          activeOpacity={1}
+          onPress={() => {}} // Prevent modal close when tapping inside
+        >
+          <Text style={modalStyles.title}>Eventos</Text>
+          
+          {loading ? (
+            <LoadingComponent message="Cargando eventos..." />
+          ) : error ? (
+            <ErrorComponent message={error} onRetry={onRefresh} />
+          ) : eventos.length === 0 ? (
+            <View style={globalStyles.screenCentered}>
+              <Text style={[globalStyles.textSecondary, { textAlign: 'center' }]}>
+                No hay eventos disponibles
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: mobileHelpers.screen.height * 0.5 }}>
+              {eventos.map((evento) => (
+                <View key={evento._id} style={modalStyles.eventCard}>
+                  <Text style={modalStyles.eventTitle}>{evento.titulo}</Text>
+                  {evento.descripcion && (
+                    <Text style={modalStyles.eventDescription}>{evento.descripcion}</Text>
+                  )}
+                  {evento.fecha && (
+                    <Text style={modalStyles.eventDetail}>
+                      📅 {formatDate(evento.fecha)}
+                    </Text>
+                  )}
+                  {evento.ubicacion && (
+                    <Text style={modalStyles.eventDetail}>
+                      📍 {evento.ubicacion}
+                    </Text>
+                  )}
+                  {(evento.horaInicio || evento.horaFin) && (
+                    <Text style={modalStyles.eventDetail}>
+                      🕐 {evento.horaInicio || ''}{evento.horaInicio && evento.horaFin ? ' - ' : ''}{evento.horaFin || ''}
+                    </Text>
                   )}
                 </View>
-                <Text style={styles.reelTitle}>{video.titulo}</Text>
-                <Text style={styles.reelDescription}>{video.descripcion || 'Sin descripción'}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-
-        {/* Sección de Fotos (Masonry Layout) */}
-        <Text style={styles.sectionTitle}>Galería de Fotos</Text>
-        <View style={styles.photoContainer}>
-          {loading ? (
-            <ActivityIndicator size="large" color="#e6a756" style={{ marginTop: 32 }} />
-          ) : error ? (
-            <Text style={{ color: 'red', textAlign: 'center', marginTop: 32 }}>{error}</Text>
-          ) : (
-            columns.map((column, index) => (
-              <View
-                key={`column-${index}`}
-                style={index === numColumns - 1 ? styles.lastColumn : styles.column}
-              >
-                {column.map((photo) => (
-                <TouchableOpacity
-                  key={photo._id}
-                  style={[styles.photoCard, { width: cardWidth }]}
-                  onPress={() => {
-                    setSelectedPhoto(photo);
-                    setModalVisible(true);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.photoIconContainer,
-                      { height: cardWidth * 0.6, width: cardWidth - 24 },
-                    ]}
-                  >
-                    {/* Imagen real */}
-                    <Image source={{ uri: photo.url }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
-                  </View>
-                  <Text style={styles.photoTitle}>{photo.titulo}</Text>
-                  <Text style={styles.photoDescription}>{photo.descripcion}</Text>
-                </TouchableOpacity>
-                ))}
-              </View>
-            ))
+              ))}
+            </ScrollView>
           )}
-        </View>
-      </ScrollView>
-      {/* Modal para ver imagen en grande */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
+          
+          <TouchableOpacity
+            style={modalStyles.closeButton}
+            onPress={onClose}
+            activeOpacity={0.8}
+          >
+            <Text style={modalStyles.closeButtonText}>Cerrar</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+const MediaModal: React.FC<{
+  visible: boolean;
+  photo?: Photo | null;
+  video?: Video | null;
+  onClose: () => void;
+}> = ({ visible, photo, video, onClose }) => {
+  const modalStyles = useMemo(() => ({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+    },
+    container: {
+      backgroundColor: stylesGlobal.colors.surface.primary,
+      borderRadius: 16,
+      padding: stylesGlobal.spacing.scale[4],
+      margin: stylesGlobal.spacing.scale[4],
+      maxWidth: mobileHelpers.screen.width * 0.9,
+      maxHeight: mobileHelpers.screen.height * 0.8,
+      alignItems: 'center' as const,
+    },
+    mediaContainer: {
+      width: mobileHelpers.screen.width * 0.8,
+      height: mobileHelpers.screen.width * 0.8,
+      borderRadius: 12,
+      overflow: 'hidden' as const,
+      marginBottom: stylesGlobal.spacing.scale[4],
+      backgroundColor: stylesGlobal.colors.surface.secondary,
+    },
+    title: {
+      fontSize: stylesGlobal.typography.scale.lg,
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+      color: stylesGlobal.colors.text.primary,
+      textAlign: 'center' as const,
+      marginBottom: stylesGlobal.spacing.scale[2],
+    },
+    description: {
+      fontSize: stylesGlobal.typography.scale.sm,
+      color: stylesGlobal.colors.text.secondary,
+      textAlign: 'center' as const,
+      marginBottom: stylesGlobal.spacing.scale[4],
+    },
+    closeButton: {
+      backgroundColor: stylesGlobal.colors.primary[500],
+      paddingVertical: stylesGlobal.spacing.scale[2],
+      paddingHorizontal: stylesGlobal.spacing.scale[4],
+      borderRadius: 8,
+    },
+    closeButtonText: {
+      color: stylesGlobal.colors.primary.contrast,
+      fontSize: stylesGlobal.typography.scale.base,
+      fontWeight: stylesGlobal.typography.weights.semibold as any,
+    },
+  }), []);
+
+  const currentMedia = photo || video;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={modalStyles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, alignItems: 'center', maxWidth: '90%' }}>
-            {selectedPhoto?.url && (
+        <TouchableOpacity
+          style={modalStyles.container}
+          activeOpacity={1}
+          onPress={() => {}} // Prevent modal close when tapping inside
+        >
+          <View style={modalStyles.mediaContainer}>
+            {photo && (
               <Image
-                source={{ uri: selectedPhoto.url }}
-                style={{ width: 300, height: 300, borderRadius: 12, marginBottom: 16 }}
-                resizeMode="cover"
+                source={{ uri: photo.url }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="contain"
               />
             )}
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#2a241f', marginBottom: 8, textAlign: 'center' }}>{selectedPhoto?.titulo}</Text>
-            <Text style={{ fontSize: 14, color: '#8b7d74', textAlign: 'center', marginBottom: 16 }}>{selectedPhoto?.descripcion}</Text>
-            <Pressable
-              onPress={() => setModalVisible(false)}
-              style={{ backgroundColor: '#e6a756', borderRadius: 8, paddingHorizontal: 24, paddingVertical: 8 }}
-            >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Cerrar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      {/* Modal para reproducir video */}
-      {/* Modal para mostrar eventos */}
-      <Modal
-        visible={eventModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEventModalVisible(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, alignItems: 'center', width: '100%', maxWidth: 400, maxHeight: '80%' }}>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#d63384', marginBottom: 16, textAlign: 'center' }}>Eventos</Text>
-            <ScrollView style={{ width: '100%' }}>
-              {events.length === 0 ? (
-                <Text style={{ color: '#8b7d74', textAlign: 'center', fontSize: 16 }}>No hay eventos disponibles.</Text>
-              ) : (
-                events.map((event, idx) => (
-                  <View key={event._id || idx} style={{ marginBottom: 18, padding: 12, backgroundColor: '#fdf2f4', borderRadius: 12, shadowColor: '#2a241f', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 2, elevation: 1 }}>
-                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#d63384', marginBottom: 4 }}>{event.titulo || 'Sin título'}</Text>
-                    <Text style={{ fontSize: 14, color: '#2a241f', marginBottom: 4 }}>{event.descripcion || 'Sin descripción'}</Text>
-                    {event.fecha && (
-                      <Text style={{ fontSize: 13, color: '#8b7d74' }}>Fecha: {event.fecha}</Text>
-                    )}
-                  </View>
-                ))
-              )}
-            </ScrollView>
-            <Pressable
-              onPress={() => setEventModalVisible(false)}
-              style={{ backgroundColor: '#d63384', borderRadius: 8, paddingHorizontal: 32, paddingVertical: 10, marginTop: 12 }}
-            >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 17 }}>Cerrar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      <Modal
-        visible={videoModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setVideoModalVisible(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, alignItems: 'center', width: '100%', maxWidth: 400 }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#2a241f', marginBottom: 10, textAlign: 'center' }}>{selectedVideo?.titulo}</Text>
-            <Text style={{ fontSize: 15, color: '#8b7d74', textAlign: 'center', marginBottom: 18 }}>{selectedVideo?.descripcion}</Text>
-            {selectedVideo?.url && (
+            {video && (
               <ExpoVideo
-                source={{ uri: selectedVideo.url }}
+                source={{ uri: video.url }}
                 rate={1.0}
                 volume={1.0}
                 isMuted={false}
                 resizeMode={ResizeMode.CONTAIN}
                 shouldPlay
                 useNativeControls
-                style={{ width: '100%', maxWidth: 360, height: 220, borderRadius: 14, marginBottom: 18, backgroundColor: '#000' }}
+                style={{ width: '100%', height: '100%' }}
               />
             )}
-            <Pressable
-              onPress={() => setVideoModalVisible(false)}
-              style={{ backgroundColor: '#d63384', borderRadius: 8, paddingHorizontal: 32, paddingVertical: 10, marginTop: 4 }}
-            >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 17 }}>Cerrar</Text>
-            </Pressable>
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+          
+          <Text style={modalStyles.title}>
+            {currentMedia?.titulo}
+          </Text>
+          <Text style={modalStyles.description}>
+            {currentMedia?.descripcion}
+          </Text>
+          
+          <TouchableOpacity
+            style={modalStyles.closeButton}
+            onPress={onClose}
+            activeOpacity={0.8}
+          >
+            <Text style={modalStyles.closeButtonText}>Cerrar</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 };
 
+// Main Component
+const GaleriaScreen: React.FC = () => {
+  const [refreshing, setRefreshing] = useState(false);
+  const [eventModalVisible, setEventModalVisible] = useState(false);
+  const [mediaModalVisible, setMediaModalVisible] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+
+  const {
+    photos,
+    videos,
+    eventos,
+    loadingPhotos,
+    loadingVideos,
+    loadingEventos,
+    errorPhotos,
+    errorVideos,
+    errorEventos,
+    refreshAll,
+    loadEventos,
+  } = useGalleryData();
+
+  const { width } = Dimensions.get('window');
+  const numColumns = 2;
+  const cardMargin = stylesGlobal.spacing.scale[3];
+  const cardWidth = (width - (numColumns + 1) * cardMargin) / numColumns;
+
+  // Handlers
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshAll();
+    setRefreshing(false);
+  }, [refreshAll]);
+
+  const handleEventsPress = useCallback(() => {
+    setEventModalVisible(true);
+    if (eventos.length === 0) {
+      loadEventos();
+    }
+  }, [eventos.length, loadEventos]);
+
+  const handlePhotoPress = useCallback((photo: Photo) => {
+    setSelectedPhoto(photo);
+    setSelectedVideo(null);
+    setMediaModalVisible(true);
+  }, []);
+
+  const handleVideoPress = useCallback((video: Video) => {
+    setSelectedVideo(video);
+    setSelectedPhoto(null);
+    setMediaModalVisible(true);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setMediaModalVisible(false);
+    setSelectedPhoto(null);
+    setSelectedVideo(null);
+  }, []);
+
+  const renderPhotoItem = useCallback(({ item, index }: { item: Photo; index: number }) => (
+    <PhotoCard
+      photo={item}
+      onPress={() => handlePhotoPress(item)}
+      cardWidth={cardWidth}
+    />
+  ), [cardWidth, handlePhotoPress]);
+
+  const renderVideoItem = useCallback(({ item }: { item: Video }) => (
+    <VideoCard
+      video={item}
+      onPress={() => handleVideoPress(item)}
+    />
+  ), [handleVideoPress]);
+
+  return (
+    <SafeAreaView style={globalStyles.screenBase}>
+      <StatusBar barStyle="dark-content" backgroundColor={stylesGlobal.colors.surface.primary} />
+      
+      <Header onEventsPress={handleEventsPress} />
+      
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[stylesGlobal.colors.primary[500]]}
+            tintColor={stylesGlobal.colors.primary[500]}
+          />
+        }
+      >
+        <View style={globalStyles.screenContent}>
+          {/* Videos Section */}
+          <Text style={{
+            fontSize: mobileHelpers.getDynamicFontSize(stylesGlobal.typography.scale['2xl']),
+            fontWeight: stylesGlobal.typography.weights.semibold as any,
+            color: stylesGlobal.colors.text.primary,
+            marginBottom: stylesGlobal.spacing.scale[4],
+            marginTop: stylesGlobal.spacing.scale[4],
+          }}>
+            Videos Destacados
+          </Text>
+          
+          {loadingVideos ? (
+            <LoadingComponent message="Cargando videos..." />
+          ) : errorVideos ? (
+            <ErrorComponent message={errorVideos} onRetry={refreshAll} />
+          ) : (
+            <FlatList
+              data={videos}
+              renderItem={renderVideoItem}
+              keyExtractor={(item) => item._id || item.url}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: stylesGlobal.spacing.scale[4] }}
+            />
+          )}
+
+          {/* Photos Section */}
+          <Text style={{
+            fontSize: mobileHelpers.getDynamicFontSize(stylesGlobal.typography.scale['2xl']),
+            fontWeight: stylesGlobal.typography.weights.semibold as any,
+            color: stylesGlobal.colors.text.primary,
+            marginBottom: stylesGlobal.spacing.scale[4],
+            marginTop: stylesGlobal.spacing.scale[6],
+          }}>
+            Galería de Fotos
+          </Text>
+          
+          {loadingPhotos ? (
+            <LoadingComponent message="Cargando fotos..." />
+          ) : errorPhotos ? (
+            <ErrorComponent message={errorPhotos} onRetry={refreshAll} />
+          ) : (
+            <FlatList
+              data={photos}
+              renderItem={renderPhotoItem}
+              keyExtractor={(item) => item._id || item.url}
+              numColumns={numColumns}
+              columnWrapperStyle={{ justifyContent: 'space-between' }}
+              scrollEnabled={false}
+              contentContainerStyle={{ paddingBottom: stylesGlobal.spacing.scale[4] }}
+            />
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Event Modal */}
+      <EventModal
+        visible={eventModalVisible}
+        eventos={eventos}
+        loading={loadingEventos}
+        error={errorEventos}
+        onClose={() => setEventModalVisible(false)}
+        onRefresh={loadEventos}
+      />
+
+      {/* Media Modal */}
+      <MediaModal
+        visible={mediaModalVisible}
+        photo={selectedPhoto}
+        video={selectedVideo}
+        onClose={handleCloseModal}
+      />
+    </SafeAreaView>
+  );
+};
 
 export default GaleriaScreen;

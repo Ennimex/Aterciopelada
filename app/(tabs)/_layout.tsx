@@ -1,4 +1,4 @@
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 
@@ -13,8 +13,8 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Inicio',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="house" color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
           ),
         }}
       />
@@ -22,8 +22,8 @@ export default function TabLayout() {
         name="ProductosScreen"
         options={{
           title: 'Productos',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="wrench.and.screwdriver" color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="build" size={size} color={color} />
           ),
         }}
       />
@@ -31,8 +31,8 @@ export default function TabLayout() {
         name="ServiciosScreen"
         options={{
           title: 'Servicios',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="star.fill" color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="star" size={size} color={color} />
           ),
         }}
       />
@@ -40,8 +40,8 @@ export default function TabLayout() {
         name="GaleriaScreen"
         options={{
           title: 'Galería',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="photo.on.rectangle" color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="images" size={size} color={color} />
           ),
         }}
       />
