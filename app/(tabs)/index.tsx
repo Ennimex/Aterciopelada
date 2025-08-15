@@ -37,6 +37,7 @@ type RootStackParamList = {
   LoginScreen: undefined;
   ServiciosScreen: undefined;
   'auth/ScreenPerfil': undefined;
+  'auth/ScreenContacto': undefined;
 };
 
 // Constants
@@ -469,7 +470,8 @@ const MenuModal: React.FC<{
   onClose: () => void;
   onLogout: () => void;
   onProfilePress: () => void;
-}> = ({ visible, onClose, onLogout, onProfilePress }) => {
+  onContactPress: () => void;
+}> = ({ visible, onClose, onLogout, onProfilePress, onContactPress }) => {
   const modalStyles = StyleSheet.create({
     overlay: {
       flex: 1,
@@ -551,6 +553,18 @@ const MenuModal: React.FC<{
           >
             <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>👤</Text>
             <Text style={modalStyles.menuItemText}>Editar Perfil</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={modalStyles.menuItem}
+            onPress={() => {
+              onContactPress();
+              onClose();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: stylesGlobal.typography.scale.lg }}>💬</Text>
+            <Text style={modalStyles.menuItemText}>Contacto</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -710,6 +724,10 @@ const Index: React.FC = () => {
     navigation.navigate('auth/ScreenPerfil');
   }, [navigation]);
 
+  const handleContactPress = useCallback(() => {
+    navigation.navigate('auth/ScreenContacto');
+  }, [navigation]);
+
   const handleMenuPress = useCallback(() => {
     setIsMenuModalVisible(true);
   }, []);
@@ -829,6 +847,7 @@ const Index: React.FC = () => {
         onClose={handleCloseModal}
         onLogout={handleLogout}
         onProfilePress={handleProfilePress}
+        onContactPress={handleContactPress}
       />
     </SafeAreaView>
   );

@@ -23,7 +23,7 @@ export default function TabLayout() {
         options={{
           title: 'Productos',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="build" size={size} color={color} />
+            <Ionicons name="basket-outline" size={size} color={color} />
           ),
         }}
       />
@@ -32,7 +32,7 @@ export default function TabLayout() {
         options={{
           title: 'Servicios',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="star" size={size} color={color} />
+            <Ionicons name="sparkles-outline" size={size} color={color} />
           ),
         }}
       />
